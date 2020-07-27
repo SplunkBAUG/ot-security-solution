@@ -1,0 +1,95 @@
+<form>
+  <label>005-R1.1 - Internally Routable Traffic within ESP</label>
+  <description>All applicable Cyber Assets connected to a network via a routable protocol shall reside within a defined ESP.</description>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dvc_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| makemv zone delim="|"
+| mvexpand zone
+| search zone="esp:*" `get_high_medium_cip_assets(classification)`
+| eval zone=replace(zone, "esp:", "")
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+|  search `get_high_medium_cip_assets(classification)`
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Internally Routable Traffic</title>
+      <table>
+        <search>
+          <query>| tstats `summariesonly` count from datamodel=Network_Traffic.All_Traffic where All_Traffic.action="allowed" AND 
+    [| inputlookup cip_asset_lookup.csv 
+    | eval All_Traffic.dvc=ip 
+    | fields All_Traffic.dvc ] by _time,All_Traffic.src,All_Traffic.dvc,All_Traffic.dest 
+| `drop_dm_object_name("All_Traffic")` 
+| `get_cip_info_by_ip(dvc, "dvc")` 
+| eval site_id=dvc_site_id 
+| `get_cip_info_by_ip(dest, "dest")` 
+| `get_cip_info_by_ip(src, "src")` 
+| `get_cip_asset_type(src_classification, cip_asset_type)`
+| search `get_high_medium_cip_assets(dvc_classification)` cip_asset_type="BCA" OR cip_asset_type="PCA" $site_id_tok$ $espZone_tok$ 
+| fillnull src_zone value="esp:unknown" 
+| `get_esp_zone(src_zone)` 
+| fillnull dest_zone value="esp:unknown" 
+| `get_esp_zone(dest_zone)` 
+| `get_esp_zone(dvc_zone)` 
+| fillnull src_zone,dest_zone value="Unknown" 
+| where (src_zone=dvc_zone AND dvc_zone=dest_zone) AND (src_nt_host!=dest_nt_host) 
+| eval Source=src_nt_host, Destination=dest_nt_host 
+| stats sum(count) as Total by dvc_nt_host,Source,Destination,dvc_zone,dvc_site_id 
+| sort -Total 
+| table dvc_nt_host,Source,Destination,dvc_zone,dvc_site_id,Total 
+| rename Total as "# Connections", dvc_zone as "ESP Zone", dvc_site_id as Facility, dvc_nt_host as "EAP Device"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>

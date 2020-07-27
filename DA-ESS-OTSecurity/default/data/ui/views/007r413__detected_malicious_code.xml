@@ -1,0 +1,87 @@
+<form>
+  <label>007-R4.1.3 - Detected Malicious Code</label>
+  <description>Log events at the BES Cyber System level (per BES Cyber System capability) or at the Cyber Asset level (per Cyber Asset capability) for identification of, and after-the-fact investigations of, Cyber Security Incidents that includes detected malicious code.</description>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| makemv zone delim="|"
+| mvexpand zone
+| search `get_high_medium_cip_assets(classification)`
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+|  search `get_high_medium_cip_assets(classification)`
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Detected Malicious Code</title>
+      <table>
+        <search>
+          <query>| tstats `summariesonly` dc(Malware_Attacks.dest) as dest_count from datamodel=Malware.Malware_Attacks where Malware_Attacks.action="*" AND Malware_Attacks.category="*" AND 
+    [| inputlookup cip_asset_lookup 
+    | eval Malware_attacks.dest=ip 
+    | fields Malware_attacks.dest ] OR 
+    [| inputlookup cip_asset_lookup 
+    | eval Malware_attacks.dest=nt_host 
+    | fields Malware_attacks.dest ] by _time,Malware_Attacks.signature, Malware_Attacks.dest 
+| `drop_dm_object_name("Malware_Attacks")` 
+| `get_cip_info_by_hostname(dest, "dest")` 
+| `get_cip_info_by_ip(dest, "dest")` 
+| `get_cip_asset_type(dest_classification, cip_asset_type)` 
+| search `get_high_medium_cip_assets(dest_classification)` (cip_asset_type="BCA" OR cip_asset_type="PCA" OR cip_asset_type="EACM" OR cip_asset_type="PAC") $espZone_tok$ $site_id_tok$ 
+| `get_esp_zone(dest_zone)` 
+| table _time,dest_nt_host,dest_zone,dest_site_id,signature 
+| rename dest_nt_host as Host, dest_zone as "ESP Zone", dest_site_id as Facility, signature as Signature</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>

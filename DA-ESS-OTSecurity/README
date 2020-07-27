@@ -1,0 +1,9 @@
+**************************************************************
+* Installation Instructions                                  *
+**************************************************************
+
+The DA-ESS-OTSecurity app is designed to be used as domain add on with Enterprise Security.  It contains two data models OT_Asset and OT_Asset_Software
+
+The following instructions explain how to install the app.
+	1. Follow instructions for installed Splunk Enterprise Security found here:  https://docs.splunk.com/Documentation/ES/6.2.0/Install/InstallEnterpriseSecurity
+	2. Install DA-ESS-OTSec App via the Splunk GUI

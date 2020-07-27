@@ -1,0 +1,307 @@
+<form theme="light">
+  <label>CIP-007 R2: Security Patch Management</label>
+  <description>Each Responsible Entity shall implement one or more documented process(es) that collectively include each of the applicable requirement parts in CIP-007-6 Table R2 – Security Patch Management.</description>
+  <init>
+    <set token="hostMaliciousFilter_tok">*</set>
+    <set token="espUsbHostFilter">*</set>
+  </init>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>Dest ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="esp_facility_tok" searchWhenChanged="true">
+      <label>Dest Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| dedup site_id sortby site_id
+| fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="link" token="showRegulation_tok" searchWhenChanged="true">
+      <label>CIP Requirements</label>
+      <choice value="true">Show</choice>
+      <choice value="false">Hide</choice>
+      <default>false</default>
+      <initialValue>false</initialValue>
+      <change>
+        <condition value="true">
+          <set token="showRegulation_tok">true</set>
+        </condition>
+        <condition value="false">
+          <unset token="showRegulation_tok"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <h1>R2.3: For applicable patches identified, with 35 days of evaluation, track whether patches have been applied, are included in a data mitagation plan, or revised the existing mitagation plans.</h1>
+        
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <single>
+        <title>Available Updates</title>
+        <search>
+          <query>| tstats `summariesonly` latest(Updates.status) as status from datamodel=Updates.Updates where earliest=-30d@d latest=+0s by _time,Updates.dest,Updates.signature_id,Updates.vendor_product 
+| `drop_dm_object_name("Updates")` 
+| `get_cip_info_by_hostname(dest, "dest")` 
+| search status=available dest_classification="*cip*" $esp_facility_tok$ $espZone_tok$
+| dedup dest,signature_id
+| timechart count</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel"># Updates</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Installed Updates</title>
+        <search>
+          <query>| tstats `summariesonly` latest(Updates.status) as status from datamodel=Updates.Updates where earliest=-30d@d latest=+0s by _time,Updates.dest,Updates.signature_id,Updates.vendor_product 
+| `drop_dm_object_name("Updates")` 
+| `get_cip_info_by_hostname(dest, "dest")` 
+| search status=installed  dest_classification="*cip*" $esp_facility_tok$ $espZone_tok$
+| dedup dest,signature_id
+| timechart count</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel"># Updates</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Update Errors</title>
+        <search>
+          <query>| pivot Updates Update_Errors count(host) as HostCount SPLITROW host  SPLITROW source SPLITROW sourcetype SPLITROW _time
+| `get_cip_info_by_hostname(host, "dest")`
+| search dest_classification="*cip*" dest_site_id="*" dest_zone="*esp:**"
+| timechart dc(host)</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel"># Failures</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <single>
+        <title>Missing Patches by Approval State</title>
+        <search>
+          <query>| tstats `summariesonly` latest(Updates.status) as status from datamodel=Updates.Updates where earliest=-30d@d latest=+0s by _time,Updates.dest,Updates.signature_id,Updates.vendor_product,Updates.signature 
+| `drop_dm_object_name("Updates")` 
+| `get_cip_info_by_hostname(dest, "dest")` 
+| search dest_should_update="TRUE" status=available $esp_facility_tok$ $espZone_tok$  
+| eval kb=replace(signature, "KB", "") 
+| eval host=dest 
+| `get_baseline_group` 
+| search group_id=* 
+| `get_baseline_patches`
+| search status="available"
+| fillnull baseline_approval_state, baseline_severity value="Unknown"
+| stats dc(signature) by baseline_approval_state</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">125</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">1</option>
+        <option name="trellis.size">small</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <chart>
+        <title>Top Systems Needing Updates</title>
+        <search>
+          <query>| tstats `summariesonly` latest(Updates.status) as status from datamodel=Updates.Updates where earliest=-30d@d latest=+0s by _time,Updates.dest,Updates.signature_id,Updates.vendor_product,Updates.signature 
+| `drop_dm_object_name("Updates")` 
+| `get_cip_info_by_hostname(dest, "dest")` 
+| search dest_should_update="TRUE" status=available $esp_facility_tok$ $espZone_tok$ 
+| eval kb=replace(signature, "KB", "") 
+| eval host=dest 
+| `get_baseline_group` 
+| search group_id=* 
+| `get_baseline_patches`
+| search baseline_approval_state="Install"
+| dedup dest_nt_host,kb
+| stats count by host</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="charting.axisLabelsY.majorUnit">1</option>
+        <option name="charting.axisTitleX.visibility">collapsed</option>
+        <option name="charting.axisTitleY.text"># Updates</option>
+        <option name="charting.chart">bar</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    <panel>
+      <chart>
+        <title>Top Updates Needed</title>
+        <search>
+          <query>| tstats `summariesonly` latest(Updates.status) as status from datamodel=Updates.Updates where earliest=-30d@d latest=+0s by _time,Updates.dest,Updates.signature_id,Updates.vendor_product,Updates.signature 
+| `drop_dm_object_name("Updates")` 
+| `get_cip_info_by_hostname(dest, "dest")` 
+| search dest_should_update="TRUE" status=available $esp_facility_tok$ $espZone_tok$ 
+| eval kb=replace(signature, "KB", "") 
+| eval host=dest 
+| `get_baseline_group` 
+| search group_id=* 
+| `get_baseline_patches`
+| search baseline_approval_state="Install"
+| dedup dest_nt_host,kb
+| stats count by kb</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="charting.axisLabelsY.majorUnit">1</option>
+        <option name="charting.axisTitleX.visibility">collapsed</option>
+        <option name="charting.axisTitleY.text"># Hosts</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.chart">bar</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Approved Patches Not Installed (&gt; 30 days)</title>
+      <table>
+        <search>
+          <query>| tstats `summariesonly` latest(Updates.status) as status from datamodel=Updates.Updates where earliest=-35d@d latest=+0s by _time,Updates.dest,Updates.signature_id,Updates.vendor_product,Updates.signature 
+| `drop_dm_object_name("Updates")` 
+| `get_cip_info_by_hostname(dest, "dest")` 
+| search dest_should_update="TRUE" status=available $esp_facility_tok$ $espZone_tok$ 
+| eval kb=replace(signature, "KB", "") 
+| eval host=dest 
+| `get_baseline_group` 
+| search group_id=* 
+| `get_baseline_patches`
+| eval baseline_patch_creation_date=strptime(baseline_patch_creation_date, "%Y-%m-%d")
+| `dayDiff(baseline_patch_creation_date)` 
+| where dayDiff &gt; 30
+| `get_esp_zone(dest_zone)` 
+| search baseline_approval_state="Install"  
+| dedup dest_nt_host,kb sortby baseline_title
+| table dest_nt_host, baseline_severity,signature_id, baseline_title, baseline_patch_creation_date, dayDiff,dest_zone 
+| stats values(baseline_title) as baseline_title by dest_nt_host, baseline_severity,signature_id, baseline_patch_creation_date, dayDiff,dest_zone 
+| sort -dayDiff,severity,dest_nt_host
+| rename dest_nt_host as Host, baseline_severity as Severity, signature_id as KB, baseline_title as Title, baseline_patch_creation_date as Created, dayDiff as "Age", dest_zone as "ESP Zone" 
+| convert ctime(Created)</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">10</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="number" field="Age">
+          <option name="precision">0</option>
+          <option name="unit">days old</option>
+        </format>
+        <format type="color" field="Severity">
+          <colorPalette type="map">{"Critical":#DC4E41,"Important":#F1813F,"High":#F8BE34,"Medium":#B6C75A,"Low":#708794}</colorPalette>
+        </format>
+      </table>
+    </panel>
+    <panel>
+      <table>
+        <title>Security Patches Needing Review</title>
+        <search>
+          <query>| tstats `summariesonly` latest(Updates.status) as status from datamodel=Updates.Updates where earliest=-35d@d latest=+0s by _time,Updates.dest,Updates.signature_id,Updates.vendor_product,Updates.signature 
+| `drop_dm_object_name("Updates")` 
+| `get_cip_info_by_hostname(dest, "dest")` 
+|  search dest_should_update="TRUE" signature!="unknown" $esp_facility_tok$ $espZone_tok$
+| eval kb=replace(signature, "KB", "") 
+| eval host=dest 
+| `get_baseline_group` 
+| search group_id=* 
+| `get_baseline_patches`
+| `get_esp_zone(dest_zone)` 
+| eval State=CASE(
+isnull(baseline_approval_state) and status="installed", "Needs Review - Installed",
+isnull(baseline_approval_state) and status="available", "Needs Review",
+baseline_approval_state="Install" and status="available", "Requires Install",
+baseline_approval_state="Exclude" AND status="installed", "Requires Uninstall",
+1=1, "Good")
+| search State="Needs Review*"
+| fillnull baseline_approval_state,baseline_title,baseline_severity value="Not in baseline"
+| dedup host,kb sortby baseline_approval_state
+| table host, baseline_severity,kb, baseline_title, dest_zone, baseline_approval_state, status,State
+| sort -State,severity,host_nt_host
+| rename host_nt_host as Host, baseline_severity as Severity, kb as KB, baseline_title as Title, dest_zone as "ESP Zone", baseline_approval_state as "Baseline Approved", status as "Current State"
+| convert ctime(Created)</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="State">
+          <colorPalette type="map">{"Requires Install":#F1813F,"Requires Uninstall":#F8BE34,"Needs Review":#F1813F,"Needs Review - Installed":#DC4E41,"Good":#53A051}</colorPalette>
+        </format>
+        <format type="color" field="Severity">
+          <colorPalette type="map">{"Important":#F1813F,"Not in baseline":#DC4E41}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

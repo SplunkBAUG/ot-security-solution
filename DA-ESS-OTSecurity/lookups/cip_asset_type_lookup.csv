@@ -1,0 +1,15 @@
+asset_type,asset_master_type,icon,color
+switch,Network,drum-steelpan,black
+Unknown,Unknown,,black
+eng workstation,Workstation,laptop-code,blue
+hmi,Workstation,chalkboard-teacher,blue
+workstation,Workstation,workstation,blue
+historian,Server,database,green
+poller,Server,sitemap,green
+scada,ics,sitemap,green
+plc,OT Asset,microchip,orange
+rtu,OT Asset,microchip,orange
+domain controller,Server,id-card,red
+firewall,EACM,expeditedssl,red
+ids,EACM,expeditedssl,red
+remote access,Remote Access,door-open,red

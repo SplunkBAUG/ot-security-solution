@@ -1,0 +1,103 @@
+<form theme="light">
+  <label>010-R1.1.5 - Installed Security Patches</label>
+  <description>Develop a baseline configuration, individually or by group, which shall include any security patches applied.</description>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>host_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| makemv zone delim="|"
+| mvexpand zone
+| search `get_high_medium_cip_assets(classification)`
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>host_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+|  search `get_high_medium_cip_assets(classification)`
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <table>
+        <title>Installed Security Patches</title>
+        <search>
+          <query>| tstats `summariesonly` latest(Updates.status) as status from datamodel=Updates.Updates where 
+    [| inputlookup cip_asset_lookup 
+    | eval Updates.dest=nt_host
+    | fields Updates.dest ] by _time,Updates.dest,Updates.signature_id,Updates.vendor_product,Updates.signature 
+| `drop_dm_object_name("Updates")` 
+| `get_cip_info_by_hostname(dest, "host")` 
+| search host_should_update="TRUE" signature!="unknown" $espZone_tok$ $site_id_tok$
+| eval kb=replace(signature, "KB", "") 
+| eval host=dest 
+| `get_baseline_group` 
+| search group_id=* 
+| `get_baseline_patches` 
+| `get_esp_zone(host_zone)` 
+| eval State=CASE(
+    isnull(baseline_approval_state) and status="installed", "Needs Review - Installed",
+    isnull(baseline_approval_state) and status="available", "Needs Review",
+    baseline_approval_state="Install" and status="available", "Requires Install",
+    baseline_approval_state="Exclude" AND status="installed", "Requires Uninstall",
+    1=1, "Good") 
+| fillnull baseline_approval_state,baseline_title,baseline_severity value="Not in baseline" 
+| dedup host,kb sortby baseline_approval_state 
+| eval baseline_patch_creation_date=strptime(baseline_patch_creation_date, "%Y-%m-%d") 
+| table host, baseline_severity,kb, baseline_title, baseline_patch_creation_date, host_zone, host_site_id, baseline_approval_state, status,State 
+| sort -State,severity,host_nt_host 
+| rename host_nt_host as Host, baseline_severity as Severity, signature_id as KB, baseline_title as Title, baseline_patch_creation_date as Created, host_zone as "ESP Zone", baseline_approval_state as "Baseline Approved", status as "Current State", host_site_id as Facility
+| convert ctime(Created)</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="count">25</option>
+        <option name="drilldown">none</option>
+        <format type="color" field="Baseline Matches Installed">
+          <colorPalette type="map">{"Yes":#53A051,"No":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="Baseline Approved">
+          <colorPalette type="map">{"Yes - Approved":#53A051,"No - Not Approved":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="Deviation">
+          <colorPalette type="map">{"Yes":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="State">
+          <colorPalette type="map">{"Good":#53A051,"Requires Install":#DC4E41,"Needs Review - Installed":#F1813F,"Needs Review":#006D9C}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

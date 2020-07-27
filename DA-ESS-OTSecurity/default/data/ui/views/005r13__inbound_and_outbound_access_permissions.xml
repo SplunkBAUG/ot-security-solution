@@ -1,0 +1,91 @@
+<form>
+  <label>005-R1.3 - Inbound and Outbound Access Permissions</label>
+  <description>Require inbound and outbound access permissions, including the reason for granting access, and deny all other access by default.</description>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| makemv zone delim="|"
+| mvexpand zone
+| search `get_high_cip_assets(classification)`
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| search `get_high_cip_assets(classification)`
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok">
+      <label>Time Period</label>
+      <default>
+        <earliest>-4h@m</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <table>
+        <title>Inbound and Outbound Permissions</title>
+        <search>
+          <query>| inputlookup cip_firewall_rules.csv 
+| lookup cip_asset_lookup.csv ip as firewall OUTPUT ip,classification, site_id,nt_host, zone as dest_zone, priority, category
+| search `get_high_cip_assets(classification)` $espZone_tok$ $site_id_tok$
+| makemv dest_zone delim="|" 
+| mvexpand dest_zone 
+| `get_esp_zone(dest_zone)` 
+|  join type=left firewall src_object_group
+    [ | inputlookup cip_firewall_object_groups.csv
+    | makemv delim="|" ips 
+    |  eval src_object_group=group_name, src_ips=ips
+    |  fields firewall,src_object_group,src_ips]
+|  join type=left firewall
+    [ | inputlookup cip_firewall_object_groups.csv
+    | makemv delim="|" ips 
+    |  eval dest_object_group=group_name, dest_ips=ips
+    |  fields firewall,dest_object_group,dest_ips]
+    | fillnull dest_ips,src_ips value="any"
+| table nt_host,ip,dest_zone,site_id,firewall_rule,note,action,src_object_group,src_ips,dest_object_group,dest_ips,port
+| rename nt_host as Host, ip as IP,dest_zone as "ESP Zone", firewall_rule as Rule,note as Description, action as Action, src_object_group as "Source Group", src_ips as "Source IP's", dest_object_group as "Dest Group", dest_ips as "Dest IPs", port as Port, site_id as Facility</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>
