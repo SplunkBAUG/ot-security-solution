@@ -1,0 +1,485 @@
+<form theme="light" stylesheet="available_icons.css">
+  <label>CIP-005 R2: Interactive Remote Access Management</label>
+  <description>To manage electronic access to BES Cyber Systems by specifying a controlled Electronic Security Perimeter in support of protecting BES Cyber Systems against compromise that could lead to misoperation or instability in the BES.</description>
+  <search id="baseUnencryptedSearch">
+    <query>
+      `get_firewall_datasources`
+| fillnull encrypted,dest_site_id,dest_zone value="Unknown"
+| search action=allowed encrypted=No
+| `get_cip_info_by_ip(dest, "dest")` 
+| `get_cip_info_by_ip(src, "src")`
+| fillnull dest_zone,src_zone value="esp:External"
+| search $esp_facility_tok$ $espZone_tok$ 
+| `get_esp_zone(dest_zone)`
+| `get_esp_zone(src_zone)`
+| where dest_zone!=src_zone
+| eval dest_nt_host=if(isnull(dest_nt_host), dest, dest_nt_host)
+| eval src_nt_host=if(isnull(src_nt_host), src, src_nt_host)
+| stats count by dest_nt_host, dest_zone, src_nt_host, src_zone, transport, vendor_app
+    </query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+    <sampleRatio>1</sampleRatio>
+  </search>
+  <search id="baseVPNSearch">
+    <query>
+      | tstats `summariesonly` count from datamodel=Network_Sessions.All_Sessions WHERE All_Sessions.tag="vpn" by _time,All_Sessions.dest_ip,All_Sessions.src_ip,All_Sessions.user
+| `drop_dm_object_name("All_Sessions")` 
+| `get_cip_info_by_ip(dest_ip, "dest")`
+| `get_cip_info_by_ip(src_ip, "src")`
+| search $esp_facility_tok$ $espZone_tok$ 
+| eval dest_nt_host=if(isnull(dest_nt_host), dest_ip, dest_nt_host)
+| eval src_nt_host=if(isnull(src_nt_host), src_ip, src_nt_host)
+| stats dc(src_ip) as distinct_sources, count as session_count, dc(user) as distinct_users by _time
+    </query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+    <sampleRatio>1</sampleRatio>
+  </search>
+  <search id="baseRemoteSearch">
+    <query>
+      | tstats `summariesonly` count from datamodel=Authentication.Authentication where Authentication.app="win:*" AND Authentication.dest!="localhost" AND Authentication.src!="localhost" by _time,Authentication.src,Authentication.user,Authentication.dest,Authentication.action,Authentication.signature span=1s 
+| `drop_dm_object_name("Authentication")` 
+| `get_cip_info_by_dns(dest, "dest")`
+| `get_cip_info_by_dns(src, "src")`
+| search  $esp_facility_tok$ $espZone_tok$ 
+| eval dest_nt_host=if(isnull(dest_nt_host), dest, dest_nt_host)
+| eval src_nt_host=if(isnull(src_nt_host), src, src_nt_host)
+| stats count by _time,src_nt_host,user,dest_nt_host,action,signature
+    </query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+    <sampleRatio>1</sampleRatio>
+  </search>
+  <search id="base2fa">
+    <query>
+      | inputlookup cip_asset_lookup.csv 
+| search asset_type="remote*" 
+| eval is_using_2fa=0 
+| join type=left nt_host 
+    [ search `get_2fa_indexes`
+    | `get_cip_info_by_ip(dest, "dest")` 
+    | search dest_classification="*cip*" 
+    | eval is_using_2fa=1 
+    | eval nt_host=dest_nt_host 
+    | fields nt_host,is_using_2fa ] 
+|  stats count as total by nt_host,is_using_2fa
+    </query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+    <sampleRatio>1</sampleRatio>
+  </search>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| search  classification="*cip:eap*" 
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="esp_facility_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| rename zone as dest_zone
+| search classification="*cip:eap*" $espZone_tok$
+| dedup site_id sortby site_id
+| fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="link" token="showRegulation_tok" searchWhenChanged="true">
+      <label>CIP Requirements</label>
+      <choice value="true">Show</choice>
+      <choice value="false">Hide</choice>
+      <default>false</default>
+      <initialValue>false</initialValue>
+      <change>
+        <condition value="true">
+          <set token="showRegulation_tok">true</set>
+        </condition>
+        <condition value="false">
+          <unset token="showRegulation_tok"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-user" style="font-size: 34px;color:#FF5733"/>  Remote Sessions</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <h1>R2.1 - Remote Access does not directly access an applicable Cyber Asset</h1>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>VPN Sessions (All)</title>
+      <single>
+        <search base="baseVPNSearch">
+          <query>timechart sum(session_count)</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="height">85</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="underLabel">Sessions</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>VPN Sessions (Sources)</title>
+      <single>
+        <search base="baseVPNSearch">
+          <query>timechart sum(distinct_sources)</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0</option>
+        <option name="height">85</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="underLabel">Unique Sources</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title># VPN Sessions (Users)</title>
+      <single>
+        <search base="baseVPNSearch">
+          <query>timechart sum(distinct_users)</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="height">85</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="underLabel">Distinct Users</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title># Remote Sessions (Failed)</title>
+      <single>
+        <search base="baseRemoteSearch">
+          <query>search action="failure"
+| timechart sum(count)</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">all</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="height">85</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="trendInterval">-1h</option>
+        <option name="underLabel">Sessions</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+        <drilldown>
+          <set token="action_tok">failure</set>
+          <set token="showSessions">true</set>
+        </drilldown>
+      </single>
+    </panel>
+    <panel>
+      <title># Remote Sessions (Successful)</title>
+      <single>
+        <search base="baseRemoteSearch">
+          <query>search action="success"
+| timechart sum(count)</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">all</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="height">85</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="trendInterval">-1h</option>
+        <option name="underLabel">Sessions</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+        <drilldown>
+          <set token="action_tok">success</set>
+          <set token="showSessions">true</set>
+        </drilldown>
+      </single>
+    </panel>
+    <panel>
+      <title># Remote Sessions (Destinations)</title>
+      <single>
+        <search base="baseRemoteSearch">
+          <query>search action="success"
+| timechart dc(dest_nt_host)</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">all</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="height">85</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="trendInterval">-1h</option>
+        <option name="underLabel">Unique Destinations</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+        <drilldown>
+          <set token="action_tok">success</set>
+          <set token="showSessions">true</set>
+        </drilldown>
+      </single>
+    </panel>
+    <panel>
+      <title># Remote Sessions (Users)</title>
+      <single>
+        <search base="baseRemoteSearch">
+          <query>search action="success"
+| timechart dc(user)</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">all</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="height">85</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="trendInterval">-1h</option>
+        <option name="underLabel">Distinct Users</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+        <drilldown>
+          <set token="action_tok">success</set>
+          <set token="showSessions">true</set>
+        </drilldown>
+      </single>
+    </panel>
+  </row>
+  <row depends="$showSessions$">
+    <panel>
+      <table>
+        <search>
+          <query>| tstats `summariesonly` count from datamodel=Authentication.Authentication where Authentication.app="win:*" AND Authentication.src!="localhost" by _time,Authentication.src,Authentication.user,Authentication.dest,Authentication.action span=1s 
+| `drop_dm_object_name("Authentication")` 
+| `get_cip_info_by_dns(dest, "dest")`
+| `get_cip_info_by_dns(src, "src")`
+| search  $esp_facility_tok$ $espZone_tok$ action=$action_tok$ 
+| eval dest_nt_host=if(isnull(dest_nt_host), dest, dest_nt_host)
+| eval src_nt_host=if(isnull(src_nt_host), src, src_nt_host)
+| table _time,src_nt_host,dest_nt_host,user
+| rename dest_nt_host as "Dest Host", src_nt_host as "Source Host", user as User
+| sort -_time</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-user-lock" style="font-size: 34px;color:#FF5733"/>  Encryption and MFA</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <h1>R2.2 - Remote Access sessions utilize secure protocols (encrypted)</h1>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Unencrypted Sessions</title>
+      <single>
+        <search base="baseUnencryptedSearch">
+          <query>stats dc(src_nt_host)</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">86</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Hosts</option>
+        <option name="height">85</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Uncrypted Sessions with External Hosts</title>
+      <single>
+        <search base="baseUnencryptedSearch">
+          <query>| search dest_zone="External" OR src_zone="External"
+| stats dc(src_nt_host)</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">83</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Hosts</option>
+        <option name="height">85</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Remote Hosts Using MFA</title>
+      <single>
+        <search base="base2fa">
+          <query>
+            search is_using_2fa=1
+| stats dc(nt_host)</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">85</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Hosts</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Remote Hosts not Using MFA</title>
+      <single>
+        <search base="base2fa">
+          <query>
+| search is_using_2fa=0
+| stats dc(nt_host)</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">85</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Hosts</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Unencrypted Sessions outside of Zone</title>
+      <table>
+        <search base="baseUnencryptedSearch">
+          <query>| table dest_nt_host,dest_zone,src_nt_host,src_zone,transport,vendor_app
+| rename dest_nt_host as Dest, dest_zone as "Dest ESP Zone", src_nt_host as Source, src_zone as "Source ESP Zone", transport as Transport, vendor_app as Protocol</query>
+        </search>
+        <option name="count">10</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>

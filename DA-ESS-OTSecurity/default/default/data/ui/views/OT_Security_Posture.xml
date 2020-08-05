@@ -1,0 +1,540 @@
+<form theme="light" stylesheet="available_icons.css">&gt;<label>OT Security Posture</label>
+  <!-- Key indicators -->
+  <fieldset submitButton="false"></fieldset>
+  <row>
+    <panel>
+      <html id="element1">
+        <h1>
+          <i class="fas fa-chart-line" style="font-size: 38px;color:#FF5733"/>  Key OT Security Indicators</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      	<div class="key-indicators" data-group-name="OT_Security_Posture"/>
+
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+         <div class="flex flex-column justify-center relative shadow-hover default br2 hide-child">
+        <h1>
+            <i class="fas fa-bullhorn" style="font-size: 34px;color:#FF5733"/>  OT Notables</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+                </div>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel depends="$alwaysHideCSS$">
+      <html>
+        <style>
+          #panel01{
+            width:60% !important;
+          }
+          #panel02{
+            width:40% !important;
+          }
+        </style>
+      </html>
+    </panel>
+    <panel id="panel01">
+      <html>
+        <h2>
+          <i class="fas fa-angle-double-right" style="font-size: 24px;color:#009933;"/> Notable Timeline</h2>
+      </html>
+      <chart>
+        <search>
+          <query>index=notable ( dvc_asset_id="*" OR dest_asset_id="*" OR src_asset_id="*" ) 
+| strcat dvc src dest assets 
+| strcat dvc_asset_type src_asset_type dest_asset_type asset_type 
+| strcat assets " : " asset_type as combo
+| timechart count by combo</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">none</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="height">251</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+    </panel>
+    <panel id="panel02">
+      <html>
+              <h2>
+          <i class="fas fa-angle-double-right" style="font-size: 24px;color:#009933;"/> Impacted Assets with Notables</h2>
+      </html>
+      <chart>
+        <search>
+          <query>index=notable ( dvc_asset_id="*" OR dest_asset_id="*" OR src_asset_id="*" ) 
+| strcat dvc src dest assets 
+| strcat dvc_asset_type src_asset_type dest_asset_type asset_type 
+| strcat assets " : " asset_type as combo 
+| stats count by combo</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">none</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">pie</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h2>
+          <i class="fas fa-angle-double-right" style="font-size: 24px;color:#009933;"/> Top Notable Events</h2>
+        <i class="fas fa-hand-point-right" style="font-size: 25px;color:#A9A9A9"/> <b>
+          <font color="B40404">INTERACTION</font>
+        </b> : Click on the bottom table drilldown to "Incident Review"
+      </html>
+      <table id="element4">
+        <search>
+          <query>index=notable ( dvc_asset_id="*" OR dest_asset_id="*" OR src_asset_id="*" ) 
+| strcat dvc src dest assets 
+| strcat dvc_asset_type src_asset_type dest_asset_type asset_type 
+| strcat assets " : " asset_type as combo 
+| stats values(asset_type) as asset_type, values(combo) as match_asset, dc(combo) as asset_count, count, sparkline(sum(count),1d) as Trend by search_name 
+| rename search_name as "Active Notables", asset_type as "Asset Types", match_asset as "Impacted Assets", asset_count as "Impacted Asset Count", count as "Count of Incidents" 
+| sort - "Count of Incidents"</query>
+          <earliest>-6h</earliest>
+          <latest>@h</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">5</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">row</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">false</option>
+        <format type="color" field="count">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="Count of Incidents">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="number" field="Count of Incidents">
+          <option name="precision">0</option>
+          <option name="unit">Incidents</option>
+        </format>
+        <format type="number" field="Impacted Asset Count">
+          <option name="precision">0</option>
+          <option name="unit">Assets</option>
+        </format>
+        <drilldown>
+          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/incident_review?form.rule_name=$row.rule_name$&amp;earliest=$earliest$&amp;latest=$latest$&amp;search=ot</link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fab fa-flipboard" style="font-size: 34px;color:#FF5733"/>  OT Asset Activity Summary</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel depends="$alwaysHideCSS$">
+      <html>
+        <style>
+          #panel03{
+            width:40% !important;
+          }
+          #panel04{
+            width:60% !important;
+          }
+        </style>
+      </html>
+    </panel>
+    <panel id="panel03">
+      <html>
+        <h2>
+          <i class="fas fa-angle-double-right" style="font-size: 24px;color:#009933;"/> Total Risk by Day</h2>
+      </html>
+      <chart>
+        <search>
+          <query>index=risk 
+| bin _time span=1d
+| stats sum(risk_score) as risk_score_curr by _time, risk_object, risk_object_type
+| lookup ot_asset_lookup ip as risk_object 
+| lookup cip_asset_lookup ip as risk_object 
+| search asset_type=*
+| timechart sum(risk_score_curr)</query>
+          <earliest>-7d@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">none</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="height">316</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+    </panel>
+    <panel id="panel04">
+      <html>
+        <h2>
+          <i class="fas fa-angle-double-right" style="font-size: 24px;color:#009933;"/> Assets by Risk</h2>
+        <i class="fas fa-hand-point-right" style="font-size: 25px;color:#A9A9A9"/> <b>
+          <font color="B40404">INTERACTION</font>
+        </b> : Click on the bottom table drilldown to "OT Asset Investigator"
+      </html>
+      <table>
+        <search>
+          <query>index=risk earliest=-2d@d latest=+0d 
+| eval _time=strftime(_time,"%Y-%m-%d")
+| stats sum(risk_score) as risk_score_curr by _time, risk_object, risk_object_type
+| lookup ot_asset_lookup ip as risk_object 
+| lookup cip_asset_lookup ip as risk_object 
+| search asset_type=*
+| appendcols 
+    [ search index=risk earliest=-4d@d latest=-2d@d 
+| eval _time=strftime(_time,"%Y-%m-%d")
+| stats sum(risk_score) as risk_score_prev by _time, risk_object, risk_object_type
+| lookup ot_asset_lookup ip as risk_object 
+| lookup cip_asset_lookup ip as risk_object 
+| search asset_type=* ]
+| mvexpand asset_status
+| mvexpand asset_system
+| mvexpand asset_type
+| eval risk_change=risk_score_curr-risk_score_prev
+| table risk_object asset_type risk_score* risk_change  asset_status asset_system
+| sort - risk_score_curr
+| rename risk_object as "Asset", asset_type as "Asset Type", risk_score_curr as "Risk Score - Now", risk_score_prev as "Risk Score - Prev", risk_change as "Risk Delta", asset_status as "Asset Status", asset_system as "Asset System"
+| table  "Asset",  "Asset Type",  "Risk Score - Now",  "Risk Score - Prev",  "Risk Delta",  "Asset Status",  "Asset System"
+| dedup "Asset"
+| sort - "Risk Score - Now"</query>
+          <earliest>0</earliest>
+          <latest></latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">7</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">true</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="risk_score_curr">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="risk_change">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="risk_score_prev">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="asset_type">
+          <colorPalette type="sharedList"></colorPalette>
+          <scale type="sharedCategory"></scale>
+        </format>
+        <format type="color" field="Asset Type">
+          <colorPalette type="map">{"plc":#53A051,"historian":#006D9C,"eng workstation":#006D9C,"scada":#006D9C,"hmi":#006D9C,"firewall":#DC4E41,"switch":#DC4E41,"rtu":#53A051,"router":#DC4E41,"remote access":#DC4E41,"ids":#DC4E41,"nework-sw":#DC4E41,"nework-rtr":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="Risk Score - Now">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="Risk Score - Prev">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="Risk Delta">
+          <colorPalette type="minMidMax" maxColor="#EC9960" midColor="#FFFFFF" minColor="#006D9C"></colorPalette>
+          <scale type="minMidMax" midType="percentile" midValue="50"></scale>
+        </format>
+        <drilldown>
+          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/OT_Asset_Investigate?form.INPUT_ASSET=$click.value$</link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel depends="$alwaysHideCSS$">
+      <html>
+        <style>
+          #panel05{
+            width:40% !important;
+          }
+          #panel06{
+            width:60% !important;
+          }
+        </style>
+      </html>
+    </panel>
+    <panel id="panel05">
+      <html>
+        <h2>
+          <i class="fas fa-angle-double-right" style="font-size: 24px;color:#009933;"/> OT Network Activity</h2>
+      </html>
+      <chart>
+        <search>
+          <query>index=evt_sum_ot_asset_traffic sum_type=evt_sum_ot_asset_traffic_snap_1d
+| bin _time span=1d
+| eval tot_duration_hr=tot_duration/1000/60/60
+| timechart avg(tot_session) as avg_tot_session, avg(avg_port_com_num) as avg_port_com_num, sum(tot_duration_hr) as tot_duration_hr</query>
+          <earliest>-7d@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">none</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="height">338</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+    </panel>
+    <panel id="panel06">
+      <input type="link" token="SUBTRACT_FIELDS" searchWhenChanged="true">
+        <label>Show Detailed Fields :</label>
+        <choice value="table dvc, dvc_asset_type, tot_bytes_change_pct, tot_session_change_pct, tot_duration_change_pct,  dvc_asset_status, dvc_asset_system">Brief</choice>
+        <choice value="table dvc, dvc_asset_type, tot_bytes_change_pct, tot_session_change_pct, tot_duration_change_pct,  tot_mb_avg, tot_session_avg, tot_duration_avg, dvc_asset_status, dvc_asset_system">Detailed</choice>
+        <default>table dvc, dvc_asset_type, tot_bytes_change_pct, tot_session_change_pct, tot_duration_change_pct,  dvc_asset_status, dvc_asset_system</default>
+        <initialValue>table dvc, dvc_asset_type, tot_bytes_change_pct, tot_session_change_pct, tot_duration_change_pct,  dvc_asset_status, dvc_asset_system</initialValue>
+      </input>
+      <html>
+        <h2>
+          <i class="fas fa-angle-double-right" style="font-size: 24px;color:#009933;"/> Assets by Network Activity</h2>
+        <i class="fas fa-hand-point-right" style="font-size: 25px;color:#A9A9A9"/> <b>
+          <font color="B40404">INTERACTION</font>
+        </b> : Click on the bottom table drilldown to "OT Asset Investigator"
+      </html>
+      <table>
+        <search>
+          <query>index=evt_sum_ot_asset_traffic sum_type=evt_sum_ot_asset_traffic_snap_1d earliest=-1d@d latest=-0d@d 
+| table dvc tot_bytes tot_session avg_port_com_num tot_duration dvc_asset_type, dvc_asset_status, dvc_asset_system 
+| append 
+    [ search index=evt_sum_ot_asset_traffic sum_type=evt_sum_ot_asset_traffic_snap_1d earliest=-2d@d latest=-1d@d 
+    | table dvc tot_bytes tot_session avg_port_com_num tot_duration ] 
+| stats avg(tot_bytes) as tot_bytes_avg, range(tot_bytes) as tot_bytes_range, avg(tot_session) as tot_session_avg, range(tot_session) as tot_session_range, avg(tot_duration) as tot_duration_avg, range(tot_duration) as tot_duration_range, last(dvc_asset_type) as dvc_asset_type, last(dvc_asset_status) as dvc_asset_status, last(dvc_asset_system) as dvc_asset_system by dvc
+| eval tot_bytes_change_pct=((tot_bytes_avg+tot_bytes_range)*100/tot_bytes_avg)-100, tot_session_change_pct=((tot_session_avg+tot_session_range)*100/tot_session_avg)-100, tot_duration_change_pct=((tot_duration_avg+tot_duration_range)*100/tot_duration_avg)-100
+| eval tot_mb_avg=tot_bytes_avg/1024/1024
+| table dvc, dvc_asset_type, tot_mb_avg, tot_bytes_avg, tot_bytes_change_pct, tot_session_avg, tot_session_change_pct, tot_duration_avg, tot_duration_change_pct,  dvc_asset_status, dvc_asset_system
+| sort - tot_bytes_change_pct
+| $SUBTRACT_FIELDS$
+| rename dvc as "Asset", dvc_asset_type as "Asset Type", tot_bytes_change_pct as "Traffic Amount Change", tot_session_change_pct as "Session Amount Change", tot_duration_change_pct as "Duration Change",  dvc_asset_status as "Asset Status", dvc_asset_system as "Asset System", tot_mb_avg as "Traffic Amount (MB)",	tot_session_avg as "Session Amount", tot_duration_avg as "Duration"</query>
+          <earliest>-1d@d</earliest>
+          <latest>@d</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">7</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">true</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="risk_score_curr">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="risk_change">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="risk_score_prev">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="tot_session">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="tot_bytes_change_pct">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="number" field="tot_bytes_change_pct"></format>
+        <format type="color" field="tot_session_change_pct">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="number" field="tot_session_change_pct"></format>
+        <format type="color" field="tot_duration_change_pct">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="number" field="tot_duration_change_pct"></format>
+        <format type="number" field="tot_bytes_avg">
+          <option name="precision">0</option>
+        </format>
+        <format type="number" field="tot_session_avg">
+          <option name="precision">0</option>
+        </format>
+        <format type="number" field="tot_duration_avg">
+          <option name="precision">0</option>
+        </format>
+        <format type="color" field="dvc_asset_type">
+          <colorPalette type="sharedList"></colorPalette>
+          <scale type="sharedCategory"></scale>
+        </format>
+        <format type="number" field="Traffic Amount Change">
+          <option name="precision">1</option>
+          <option name="unit">%</option>
+        </format>
+        <format type="color" field="Asset Type">
+          <colorPalette type="map">{"plc":#53A051,"historian":#006D9C,"eng workstation":#006D9C,"scada":#006D9C,"hmi":#006D9C,"firewall":#DC4E41,"switch":#DC4E41,"rtu":#53A051,"router":#DC4E41,"remote access":#DC4E41,"ids":#DC4E41,"nework-sw":#DC4E41,"nework-rtr":#DC4E41}</colorPalette>
+        </format>
+        <format type="number" field="Session Amount Change">
+          <option name="precision">1</option>
+          <option name="unit">%</option>
+        </format>
+        <format type="color" field="Session Amount Change">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="Traffic Amount Change">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="Duration Change">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="number" field="Duration Change">
+          <option name="precision">1</option>
+          <option name="unit">%</option>
+        </format>
+        <format type="color" field="Asset Status">
+          <colorPalette type="map">{"operational":#53A051,"standby":#708794}</colorPalette>
+        </format>
+        <format type="number" field="Traffic Amount (MB)">
+          <option name="precision">1</option>
+          <option name="unit">mb</option>
+        </format>
+        <format type="number" field="Session Amount">
+          <option name="precision">0</option>
+        </format>
+        <format type="number" field="Duration">
+          <option name="precision">0</option>
+        </format>
+        <drilldown>
+          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/OT_Asset_Investigate?form.INPUT_ASSET=$click.value$</link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+</form>

@@ -1,0 +1,272 @@
+<form  theme="light" stylesheet="available_icons.css">
+  <label>CIP-007 R4.4: Summary of Events</label>
+  <description>Review a summarization or sampling of logged events as determined by the Responsible Entity at intervals no greater than 15 calendar days to identify undetected Cyber Security Incidents.</description>
+  <search id="baseSampleSearch">
+    <query>
+      `get_eventreview_tags` 
+| eval ComputerName=if(isnull(ComputerName), host, ComputerName) 
+| search 
+    [| inputlookup cip_asset_lookup.csv 
+    | rename nt_host as ComputerName 
+    | fields ComputerName] OR 
+    [| inputlookup cip_asset_lookup.csv 
+    | rename ip as ComputerName 
+    | fields ComputerName] 
+| `get_cip_info_by_hostname(ComputerName, "dest")`
+| search $espZone_tok$ $esp_facility_tok$ 
+| stats count by _time,sourcetype
+    </query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+    <sampleRatio>1</sampleRatio>
+  </search>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| search  classification="*cip:eap*" 
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="esp_facility_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| search classification="*cip:eap*" 
+| dedup site_id sortby site_id
+| fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-file-signature" style="font-size: 34px;color:#FF5733"/>  Logging Overview and Samples</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Logging Events by Source over Time</title>
+      <chart>
+        <search base="baseSampleSearch">
+          <query>timechart minspan=15m sum(count) by sourcetype</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">collapsed</option>
+        <option name="charting.axisTitleY.visibility">collapsed</option>
+        <option name="charting.axisTitleY2.visibility">collapsed</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">auto</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="height">299</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">1</option>
+        <option name="trellis.scales.shared">0</option>
+        <option name="trellis.size">small</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Breakdown of Sourcetypes</title>
+      <chart>
+        <search base="baseSampleSearch">
+          <query>stats sum(count) as total by sourcetype
+| sort -total</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">auto</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">pie</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="height">278</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">0</option>
+        <option name="trellis.size">small</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Breakdown of Event Types</title>
+      <chart>
+        <search>
+          <query>`get_eventreview_tags` 
+| eval ComputerName=if(isnull(ComputerName), host, ComputerName) 
+| search 
+    [| inputlookup cip_asset_lookup.csv 
+    | rename nt_host as ComputerName 
+    | fields ComputerName] OR 
+    [| inputlookup cip_asset_lookup.csv 
+    | rename ip as ComputerName 
+    | fields ComputerName] 
+| `get_cip_info_by_hostname(ComputerName, "dest")` 
+| search $espZone_tok$ $esp_facility_tok$ 
+| stats count by eventtype</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">none</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">pie</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.001</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="height">284</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Sampling of Events</title>
+      <input type="radio" token="sampleRate_tok">
+        <label>Sample Rate</label>
+        <choice value="10">1:10</choice>
+        <choice value="100">1:100</choice>
+        <choice value="1000">1:1000</choice>
+        <choice value="1">All</choice>
+        <initialValue>100</initialValue>
+      </input>
+      <input type="checkbox" token="dataSources_tok" searchWhenChanged="true">
+        <label>Data Sources</label>
+        <choice value="*">All</choice>
+        <valuePrefix>sourcetype="</valuePrefix>
+        <valueSuffix>"</valueSuffix>
+        <delimiter> OR </delimiter>
+        <fieldForLabel>sourcetype</fieldForLabel>
+        <fieldForValue>sourcetype</fieldForValue>
+        <search base="baseSampleSearch">
+          <query>dedup sourcetype sortby sourcetype
+|  fields sourcetype</query>
+        </search>
+      </input>
+      <input type="text" token="textInclude_tok" searchWhenChanged="true">
+        <label>Text Filter</label>
+        <prefix>*</prefix>
+        <suffix>*</suffix>
+        <initialValue>*</initialValue>
+      </input>
+      <event>
+        <search>
+          <query>`get_eventreview_tags` $dataSources_tok$ $textInclude_tok$
+| eval ComputerName=if(isnull(ComputerName), host, ComputerName) 
+| search 
+    [| inputlookup cip_asset_lookup.csv 
+    | rename nt_host as ComputerName 
+    | fields ComputerName] OR 
+    [| inputlookup cip_asset_lookup.csv 
+    | rename ip as ComputerName 
+    | fields ComputerName] 
+| `get_cip_info_by_hostname(ComputerName, "dest")` 
+| search $espZone_tok$ $esp_facility_tok$
+| `get_esp_zone(dest_zone)`
+| table _time,source,sourcetype,dest_zone,dest_site_id,_raw</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="list.drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </event>
+    </panel>
+  </row>
+</form>

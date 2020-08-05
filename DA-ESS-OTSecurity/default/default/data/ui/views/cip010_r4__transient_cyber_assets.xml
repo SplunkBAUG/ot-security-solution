@@ -1,0 +1,286 @@
+<form theme="light" stylesheet="available_icons.css">
+  <label>CIP-010 R4:  Transient Cyber Assets and Removable Media</label>
+  <description>Each Responsible Entity shall implement, except under CIP Exceptional Circumstances, one or more documented plan(s) for Transient Cyber Assets and Removable Media.</description>
+  <init>
+    <unset token="showNotSending"></unset>
+    <unset token="showOsDeviations"></unset>
+    <unset token="showAppDeviations"></unset>
+  </init>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>Dest ESP Zone</label>
+      <choice value="*">All</choice>
+      <choice value="Unknown">Unknown</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| search  classification="*cip:eap*" 
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="esp_facility_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>location</fieldForLabel>
+      <fieldForValue>location</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| search classification="*cip:eap*" 
+| dedup location sortby location
+| fields location</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="link" token="showRegulation_tok" searchWhenChanged="true">
+      <label>CIP Requirements</label>
+      <choice value="true">Show</choice>
+      <choice value="false">Hide</choice>
+      <default>false</default>
+      <initialValue>false</initialValue>
+      <change>
+        <condition value="true">
+          <set token="showRegulation_tok">true</set>
+        </condition>
+        <condition value="false">
+          <unset token="showRegulation_tok"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-clipboard-check" style="font-size: 38px;color:#FF5733"/>  Transient Cyber Assets</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <h1>R4.1.1 - Responsible Entities shall manage Transient Cyber Asset(s), individually or by group</h1>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>TCA Asset List</title>
+      <table>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv 
+| fillnull category value="nerc unknown" 
+| fillnull classification value="0-unknown" 
+| fillnull location,asset_type value="Unknown" 
+| fillnull zone value="esp:unknown" 
+| search $esp_facility_tok$ $espZone_tok$ 
+| eval ip=if(isnull(ip), "", ip) 
+| makemv zone delim="|" 
+| makemv category delim="|" 
+| join type=left nt_host 
+    [| tstats `summariesonly` count from datamodel=Network_Traffic.All_Traffic where All_Traffic.action="allowed" OR All_Traffic.action="unknown" by _time,All_Traffic.src 
+    | `drop_dm_object_name("All_Traffic")` 
+    | stats max(_time) as lastTime by src 
+    | lookup cip_asset_lookup.csv ip as src OUTPUT nt_host 
+    | fields nt_host,lastTime] 
+| eval lastTime=if(isnull(lastTime), "Not Reported", lastTime) 
+| eval minutesSinceLastReport=if(isnum(lastTime), round((now() - lastTime) / 60,1), "Not Reported") 
+| `get_esp_zone(zone)` 
+| search `get_cip_tca_assets(classification)` asset_type!="removable media"
+| table nt_host, ip, mac, zone, bunit, location,lastTime,minutesSinceLastReport 
+| convert ctime(lastTime) 
+| sort classification, nt_host 
+| rename lastTime as "Last Activity", minutesSinceLastReport as "Last Reported", nt_host as Host, ip as IP, mac as MAC, zone as Zone, bunit as "Business Unit", location as Facility, category as "Category"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="count">10</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="BES Impact">
+          <colorPalette type="map">{"cip:high":#4FA484,"cip:medium":#62B3B2,"0-unknown":#DC4E41}</colorPalette>
+        </format>
+        <format type="number" field="minutesSinceLastReport">
+          <option name="precision">1</option>
+          <option name="unit">minutes</option>
+        </format>
+        <format type="number" field="Last Reported">
+          <option name="precision">0</option>
+          <option name="unit">minutes ago</option>
+        </format>
+        <format type="color" field="Last Reported">
+          <colorPalette type="map">{"&gt; 24 Hours":#DC4E41}</colorPalette>
+        </format>
+        <drilldown>
+          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/asset_investigator?form.asset=$row.Host$</link>
+        </drilldown>
+      </table>
+    </panel>
+    <panel>
+      <title>Unclassified Assets Detected</title>
+      <table>
+        <search>
+          <query>| tstats `summariesonly` values(All_Traffic.src) as sources from datamodel=Network_Traffic.All_Traffic where All_Traffic.action="allowed" by All_Traffic.src,All_Traffic.dvc,All_Traffic.dest 
+| `drop_dm_object_name("All_Traffic")` 
+| eval combined_field=src."|".dest."|".dvc 
+| table src,dest,combined_field 
+| fields combined_field 
+| makemv delim="|" combined_field 
+| mvexpand combined_field 
+| lookup cip_ip_ranges.csv subnet as combined_field OUTPUTNEW location as ip_local 
+| search ip_local!="NONE" 
+| `get_cip_info_by_ip(combined_field, "host")` 
+| eval host_classification=CASE(
+    match(host_category, ".*TCA.*"), "TCA",
+    isnull(host_classification), "Unclassified",
+    1=1, host_classification) 
+| search host_classification="Unclassified" 
+| eval nt_host=if(isnull(nt_host), combined_field, nt_host) 
+| eval ip=combined_field, location=ip_local 
+| dedup nt_host,ip 
+| table nt_host,ip,ip_location 
+| rename nt_host as Host, ip as IP, ip_local as "Subnet Location"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fab fa-usb" style="font-size: 38px;color:#FF5733"/>  Removable Media</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <h1>R4.3 - Responsible Entities shall include sections in their plan(s) for Removable Media</h1>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Removable Media Approved List</title>
+      <table>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv 
+| search asset_type="removable media"
+| search $esp_facility_tok$ $espZone_tok$ 
+| join type=left nt_host 
+    [ search `get_removable_media_indexes` 
+    | lookup cip_asset_lookup.csv nt_host as Model OUTPUTNEW category as device_category 
+    | eval is_tca=CASE(
+        match(device_category, ".*TCA.*"), "Yes",
+        1=1, "No") 
+    | search is_tca="Yes" 
+    | eventstats max(_time) as lastTime by ComputerName,Model 
+    | dedup ComputerName,Model,lastTime 
+    | eval lastTime=if(isnull(lastTime), "Not Reported", lastTime) 
+    | eval ComputerName=if(ComputerName="", "Ignore", ComputerName) 
+    | eval nt_host=Model 
+    | fields nt_host,lastTime,UserName,ComputerName] 
+| eval lastTime=if(isnull(lastTime), "Not Reported", lastTime) 
+| eval minutesSinceLastReport=if(isnum(lastTime), round((now() - lastTime) / 60,1), "Not Reported") 
+| `get_esp_zone(zone)` 
+| table ComputerName,nt_host, mac, zone, bunit,UserName, lastTime,minutesSinceLastReport 
+| convert ctime(lastTime) 
+| sort classification, nt_host 
+| rename lastTime as "Last Activity", minutesSinceLastReport as "Last Reported", nt_host as Model, mac as MAC, zone as Zone, bunit as "Business Unit", ComputerName as Host</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="count">10</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="BES Impact">
+          <colorPalette type="map">{"cip:high":#4FA484,"cip:medium":#62B3B2,"0-unknown":#DC4E41}</colorPalette>
+        </format>
+        <format type="number" field="minutesSinceLastReport">
+          <option name="precision">1</option>
+          <option name="unit">minutes</option>
+        </format>
+        <format type="number" field="Last Reported">
+          <option name="precision">0</option>
+          <option name="unit">minutes ago</option>
+        </format>
+        <format type="color" field="Last Reported">
+          <colorPalette type="map">{"&gt; 24 Hours":#DC4E41}</colorPalette>
+        </format>
+        <drilldown>
+          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/asset_investigator?form.asset=$row.Host$</link>
+        </drilldown>
+      </table>
+    </panel>
+    <panel>
+      <title>Removable Media Usage</title>
+      <table>
+        <search>
+          <query>`get_removable_media_indexes` 
+| lookup cip_asset_lookup.csv nt_host as ComputerName OUTPUTNEW site_id as dest_site_id,zone as dest_zone, classification, category 
+| lookup cip_asset_lookup.csv nt_host as Model OUTPUTNEW category as device_category 
+| fillnull dest_zone value="esp:unknown" 
+| fillnull classification value="cip:unknown" 
+| fillnull dest_site_id value="unknown" 
+| fillnull device_category value="No" 
+| eval is_tca=CASE(
+    match(device_category, ".*TCA.*"), "Yes",
+    1=1, "No") 
+| eventstats max(_time) as lastTime by ComputerName,Model 
+| dedup ComputerName,Model,lastTime 
+| eval lastTime=if(isnull(lastTime), "Not Reported", lastTime) 
+| eval minutesSinceLastReport=if(isnum(lastTime), round((now() - lastTime) / 60,1), "Not Reported")
+| eval ComputerName=if(ComputerName="", "Ignore", ComputerName)
+| search ComputerName!="Ignore" 
+| sort -lastUsed,is_tca
+| table is_tca,ComputerName,UserName,Model,lastTime,minutesSinceLastReport
+| rename ComputerName as Host, UserName as User, is_tca as "TCA Approved",lastTime as "Last Activity", minutesSinceLastReport as "Used"
+| convert ctime("Last Activity")</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <format type="number" field="Used">
+          <option name="precision">1</option>
+          <option name="unit">Minute(s)</option>
+        </format>
+        <format type="color" field="TCA Approved">
+          <colorPalette type="map">{"No":#DC4E41}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

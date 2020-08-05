@@ -1,0 +1,114 @@
+<form>
+  <label>010-R4.4 - Track Removable Media Assets</label>
+  <description>Responsible Entities shall manage Transient Cyber Asset(s), individually or by group.</description>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| makemv zone delim="|"
+| mvexpand zone
+| search `get_high_medium_cip_assets(classification)`
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+|  search `get_high_medium_cip_assets(classification)`
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <table>
+        <title>Removable Media Usage</title>
+        <search>
+          <query>`get_removable_media_indexes` 
+    [| inputlookup cip_asset_lookup 
+    | eval ComputerName=nt_host 
+    | fields ComputerName ] 
+| lookup cip_asset_lookup.csv nt_host as ComputerName OUTPUTNEW site_id as dest_site_id,zone as dest_zone, classification, category 
+| lookup cip_asset_lookup.csv nt_host as Model OUTPUTNEW category as device_category 
+| fillnull dest_zone value="esp:unknown" 
+| fillnull classification value="cip:unknown" 
+| fillnull dest_site_id value="unknown" 
+| fillnull device_category value="No" 
+| eval is_tca=CASE(
+    match(device_category, ".*TCA.*"), "Yes",
+    1=1, "No") 
+| eventstats max(_time) as lastTime by ComputerName,Model 
+| dedup ComputerName,Model sortby -lastTime 
+| eval lastTime=if(isnull(lastTime), "Not Reported", lastTime) 
+| eval minutesSinceLastReport=if(isnum(lastTime), round((now() - lastTime) / 60,1), "Not Reported") 
+| eval ComputerName=if(ComputerName="", "Ignore", ComputerName) 
+| mvexpand dest_zone 
+| mvexpand dest_site_id
+| search $espZone_tok$ $site_id_tok$ ComputerName!="Ignore" 
+| `get_esp_zone(dest_zone)` 
+| sort is_tca,-lastUsed 
+| table is_tca,ComputerName,dest_zone,dest_site_id,UserName,Model,lastTime,minutesSinceLastReport 
+| rename ComputerName as Host, UserName as User, is_tca as "TCA Approved",lastTime as "Last Activity", minutesSinceLastReport as "Used", dest_zone as "ESP Zone", dest_site_id as Facility
+| convert ctime("Last Activity")</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="count">25</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="Baseline Matches Installed">
+          <colorPalette type="map">{"Yes":#53A051,"No":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="Baseline Approved">
+          <colorPalette type="map">{"Yes - Approved":#53A051,"No - Not Approved":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="Deviation">
+          <colorPalette type="map">{"Yes":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="State">
+          <colorPalette type="map">{"Good":#53A051,"Requires Install":#DC4E41,"Needs Review - Installed":#F1813F,"Needs Review":#006D9C}</colorPalette>
+        </format>
+        <format type="color" field="Zone">
+          <colorPalette type="map">{"Unknown":#DC4E41}</colorPalette>
+        </format>
+        <format type="number" field="Used">
+          <option name="precision">1</option>
+          <option name="unit">Minute(s) Ago</option>
+        </format>
+        <format type="color" field="TCA Approved">
+          <colorPalette type="map">{"No":#AF575A,"Yes":#53A051}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

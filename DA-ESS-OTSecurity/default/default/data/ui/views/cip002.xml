@@ -1,0 +1,670 @@
+<form theme="light">
+  <label>CIP-002 R1 - Critical Cyber Assets</label>
+  <description>This standard requires identification and documentation of the Critical Cyber Assets associated with the Critical Assets that support the reliable operation of BES.</description>
+  <search id="baseAssetSearch">
+    <query>| inputlookup cip_asset_lookup.csv
+    | fillnull category value="nerc unknown"
+    | fillnull classification value="0-unknown"
+    | fillnull site_id,asset_type value="Unknown"
+    | fillnull zone value="esp:unknown"
+    | search category=*nerc* $site_id_tok$ $espZone_tok$ ($assetType_tok$ OR asset_type="Unknown")
+    | eval ip=if(isnull(ip), "", ip)
+    | makemv zone delim="|"
+    | makemv category delim="|"
+    | join type=left nt_host
+    [ | tstats `summariesonly` count from datamodel=Network_Traffic.All_Traffic where All_Traffic.action="allowed" OR All_Traffic.action="unknown"  by _time,All_Traffic.src 
+    | `drop_dm_object_name("All_Traffic")` 
+    | stats max(_time) as lastTime by src 
+    | lookup cip_asset_lookup.csv ip as src OUTPUT nt_host | fields nt_host,lastTime]
+    | eval lastTime=if(isnull(lastTime), now() - 86400, lastTime)
+    | eval minutesSinceLastReport=round((now() - lastTime) / 60,1) 
+    | eval minutesSinceLastReport=if(minutesSinceLastReport&gt;=1440, "&gt; 24 Hours", minutesSinceLastReport + " minutes")
+    | `get_cip_asset_type(classification, cip_asset_type)`
+    </query>
+    <earliest>-24h</earliest>
+    <latest>now</latest>
+  </search>
+  <search id="baseAssetDetails">
+    <query>
+      | inputlookup cip_asset_lookup.csv 
+| fillnull category value="nerc unknown" 
+| fillnull classification value="0-unknown" 
+| fillnull site_id,asset_type value="Unknown" 
+| fillnull zone value="esp:unknown" 
+| search category=*nerc* $site_id_tok$ $espZone_tok$ ($assetType_tok$ OR asset_type="Unknown") 
+| eval ip=if(isnull(ip), "", ip) 
+| makemv zone delim="|" 
+| makemv category delim="|" 
+| join type=left nt_host 
+    [| tstats `summariesonly` count from datamodel=Network_Traffic.All_Traffic where All_Traffic.action="allowed" OR All_Traffic.action="unknown" by _time,All_Traffic.src 
+    | `drop_dm_object_name("All_Traffic")` 
+    | stats max(_time) as lastTime by src 
+    | lookup cip_asset_lookup.csv ip as src OUTPUT nt_host 
+    | fields nt_host,lastTime] 
+| eval lastTime=if(isnull(lastTime), now() - 86400, lastTime) 
+| eval minutesSinceLastReport=round((now() - lastTime) / 60,1) 
+| eval minutesSinceLastReport=if(minutesSinceLastReport&gt;=1440, "&gt; 24 Hours", minutesSinceLastReport + " minutes") 
+|  `get_esp_zone(zone)`
+| `get_cip_asset_type(classification, cip_asset_type)`
+    </query>
+    <earliest>-24h</earliest>
+    <latest>now</latest>
+  </search>
+  <fieldset submitButton="true" autoRun="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| search  classification="*cip:eap*" 
+| makemv zone delim="|"
+| mvexpand zone
+| search zone="esp:*"
+| eval zone=replace(zone, "esp:", "")
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="false">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="assetType_tok" searchWhenChanged="false">
+      <label>Asset Types</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>asset_type="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>asset_type</fieldForLabel>
+      <fieldForValue>asset_type</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv 
+| dedup asset_type sortby asset_type</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="link" token="showRegulation_tok" searchWhenChanged="true">
+      <label>CIP Requirements</label>
+      <choice value="true">Show</choice>
+      <choice value="false">Hide</choice>
+      <default>false</default>
+      <initialValue>false</initialValue>
+      <change>
+        <condition value="true">
+          <set token="showRegulation_tok">true</set>
+        </condition>
+        <condition value="false">
+          <unset token="showRegulation_tok"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html id="element1">
+        <h1>
+          <i class="fas fa-chart-line" style="font-size: 38px;color:#FF5733"/>  Environment Overview</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+
+
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <p>
+          <h1>R1:  The Responsible Entity shall develop a list of its identified Critical Assets determined through an annual application of the criteria contained in CIP-002 and categories by BES Impact</h1>
+        </p>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <single>
+        <title>BCA Assets</title>
+        <search base="baseAssetSearch">
+          <query>|  search category!="unknown" cip_asset_type="BCA"  |  stats count</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">81</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Hosts</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>PCA Assets</title>
+        <search base="baseAssetSearch">
+          <query>|  search category!="unknown" cip_asset_type="PCA" |  stats count</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">81</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Hosts</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>TCA Assets</title>
+        <search base="baseAssetSearch">
+          <query>|  search category!="unknown" cip_asset_type="TCA" |  stats count</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">81</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Hosts</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>BCA/PCA Assets Not Checking In</title>
+        <search base="baseAssetSearch">
+          <query>|  where minutesSinceLastReport="&gt; 24 Hours"
+|  search cip_asset_type="BCA" OR cip_asset_type="PCA"
+| stats count</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">92</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[5,10,15]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Hosts</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Unknown Assets</title>
+        <search>
+          <query>| tstats `summariesonly` values(All_Traffic.src) as sources from datamodel=Network_Traffic.All_Traffic where All_Traffic.action="allowed" by All_Traffic.src,All_Traffic.dvc,All_Traffic.dest 
+| `drop_dm_object_name("All_Traffic")` 
+| eval combined_field=src."|".dest."|".dvc
+|  table src,dest,combined_field
+| fields combined_field
+| makemv delim="|" combined_field
+| mvexpand combined_field
+| lookup cip_ip_ranges.csv subnet as combined_field OUTPUTNEW location as site_id
+| search site_id!="NONE"
+| fields - site_id
+| `get_cip_info_by_ip(combined_field, "host")`
+| fillnull host_classification value="Unclassified"
+| search host_classification="Unclassified"
+| stats dc(combined_field)</query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">88</option>
+        <option name="rangeColors">["0x53a051","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,5]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Hosts</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>PCA OT Security Zones</title>
+      <single>
+        <title>Level 3</title>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv 
+| fillnull category value="nerc unknown" 
+| fillnull classification value="0-unknown" 
+| fillnull site_id,asset_type value="Unknown" 
+| fillnull zone value="esp:unknown" 
+| search category=*nerc* $site_id_tok$ $espZone_tok$ ($assetType_tok$ OR asset_type="Unknown") 
+| rex field=zone ".*perdue:level_(?&lt;Level&gt;\d+)" 
+| `get_cip_type_and_icon(asset_type, icon, asset_master_category)` 
+| search Level=3
+| stats count by asset_master_category</query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">block</option>
+        <option name="drilldown">none</option>
+        <option name="height">164</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="rangeValues">[0]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">1</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">small</option>
+        <option name="trellis.splitBy">asset_master_category</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+      <single>
+        <title>Level 2</title>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv
+| fillnull category value="nerc unknown" 
+| fillnull classification value="0-unknown" 
+| fillnull site_id,asset_type value="Unknown" 
+| fillnull zone value="esp:unknown" 
+| search category=*nerc* $site_id_tok$ $espZone_tok$ ($assetType_tok$ OR asset_type="Unknown") 
+| rex field=zone ".*perdue:level_(?&lt;Level&gt;\d+)"
+| `get_cip_type_and_icon(asset_type, icon, asset_master_category)`
+| search Level=2
+| stats count by asset_master_category</query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">block</option>
+        <option name="drilldown">none</option>
+        <option name="height">110</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x006d9c","0x006d9c"]</option>
+        <option name="rangeValues">[0]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">1</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">small</option>
+        <option name="trellis.splitBy">asset_master_category</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+      <single>
+        <title>Level 1</title>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv 
+| fillnull category value="nerc unknown" 
+| fillnull classification value="0-unknown" 
+| fillnull site_id,asset_type value="Unknown" 
+| fillnull zone value="esp:unknown" 
+| search category=*nerc* $site_id_tok$ $espZone_tok$ ($assetType_tok$ OR asset_type="Unknown") 
+| rex field=zone ".*perdue:level_(?&lt;Level&gt;\d+)" 
+| eval asset_type="plc"
+| `get_cip_type_and_icon(asset_type, icon, asset_master_category)` 
+| search Level=1
+| stats count by asset_master_category</query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">block</option>
+        <option name="drilldown">none</option>
+        <option name="height">164</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="rangeValues">[0]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">1</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">small</option>
+        <option name="trellis.splitBy">asset_master_category</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Assets by CIP Asset Type</title>
+      <chart>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv 
+| fillnull category value="nerc unknown" 
+| fillnull classification value="0-unknown" 
+| fillnull site_id,asset_type value="Unknown" 
+| fillnull zone value="esp:unknown" 
+| search category=*nerc* $site_id_tok$ $espZone_tok$ ($assetType_tok$ OR asset_type="Unknown") 
+| rex field=zone ".*perdue:level_(?&lt;Level&gt;\d+)" 
+| `get_cip_type_and_icon(asset_type, icon, asset_master_category)`
+|  `get_cip_asset_type(classification, cip_asset_type)`
+| stats count by cip_asset_type</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="charting.drilldown">none</option>
+        <option name="height">169</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Asset by Role</title>
+      <chart>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv 
+| fillnull category value="nerc unknown" 
+| fillnull classification value="0-unknown" 
+| fillnull site_id,asset_type value="Unknown" 
+| fillnull zone value="esp:unknown" 
+| search category=*nerc*  $site_id_tok$ $espZone_tok$ ($assetType_tok$ OR asset_type="Unknown") 
+| search category=*nerc*  $site_id_tok$ $espZone_tok$ $assetType_tok$ 
+| eval ip=if(isnull(ip), "", ip) 
+| stats count by asset_type</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="charting.drilldown">none</option>
+        <option name="height">171</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html id="element2">
+        <h1>
+          <i class="fab fa-flipboard" style="font-size: 34px;color:#FF5733"/>  Asset Breakdown</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      	
+
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>BCA Asset List</title>
+      <table>
+        <search base="baseAssetDetails">
+          <query>| search cip_asset_type="BCA"
+| table classification, nt_host, ip, mac, zone, bunit, site_id, asset_type, lastTime,minutesSinceLastReport 
+| convert ctime(lastTime) 
+| sort classification, nt_host 
+| rename classification as "BES Impact" lastTime as "Last Activity", minutesSinceLastReport as "Last Reported", nt_host as Host, ip as IP, mac as MAC, zone as Zone, bunit as "Business Unit", site_id as Facility, asset_type as Role, category as "Category"</query>
+        </search>
+        <option name="count">10</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="BES Impact">
+          <colorPalette type="map">{"cip:high":#4FA484,"cip:medium":#62B3B2,"0-unknown":#DC4E41}</colorPalette>
+        </format>
+        <format type="number" field="minutesSinceLastReport">
+          <option name="precision">1</option>
+          <option name="unit">minutes</option>
+        </format>
+        <format type="number" field="Last Reported">
+          <option name="precision">0</option>
+          <option name="unit">minutes ago</option>
+        </format>
+        <format type="color" field="Last Reported">
+          <colorPalette type="map">{"&gt; 24 Hours":#DC4E41}</colorPalette>
+        </format>
+        <drilldown>
+          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/asset_investigator?form.asset=$row.Host$</link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>PCA Asset List</title>
+      <table>
+        <search base="baseAssetDetails">
+          <query>| search cip_asset_type="PCA"
+| table classification, nt_host, ip, mac, zone, bunit, site_id, asset_type, lastTime,minutesSinceLastReport 
+| convert ctime(lastTime) 
+| sort classification, nt_host 
+| rename classification as "BES Impact" lastTime as "Last Activity", minutesSinceLastReport as "Last Reported", nt_host as Host, ip as IP, mac as MAC, zone as Zone, bunit as "Business Unit", site_id as Facility, asset_type as Role, category as "Category"</query>
+        </search>
+        <option name="count">10</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="BES Impact">
+          <colorPalette type="map">{"cip:high":#4FA484,"cip:medium":#62B3B2,"0-unknown":#DC4E41}</colorPalette>
+        </format>
+        <format type="number" field="minutesSinceLastReport">
+          <option name="precision">1</option>
+          <option name="unit">minutes</option>
+        </format>
+        <format type="number" field="Last Reported">
+          <option name="precision">0</option>
+          <option name="unit">minutes ago</option>
+        </format>
+        <format type="color" field="Last Reported">
+          <colorPalette type="map">{"&gt; 24 Hours":#DC4E41}</colorPalette>
+        </format>
+        <drilldown>
+          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/asset_investigator?form.asset=$row.Host$</link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>TCA Asset List</title>
+      <table>
+        <search base="baseAssetDetails">
+          <query>| search cip_asset_type="TCA"
+| table nt_host, ip, mac, zone, bunit, site_id, asset_type, lastTime,minutesSinceLastReport 
+| convert ctime(lastTime) 
+| sort classification, nt_host 
+| rename lastTime as "Last Activity", minutesSinceLastReport as "Last Reported", nt_host as Host, ip as IP, mac as MAC, zone as Zone, bunit as "Business Unit", site_id as Facility, asset_type as Role, category as "Category"</query>
+        </search>
+        <option name="count">10</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="BES Impact">
+          <colorPalette type="map">{"cip:high":#4FA484,"cip:medium":#62B3B2,"0-unknown":#DC4E41}</colorPalette>
+        </format>
+        <format type="number" field="minutesSinceLastReport">
+          <option name="precision">1</option>
+          <option name="unit">minutes</option>
+        </format>
+        <format type="number" field="Last Reported">
+          <option name="precision">0</option>
+          <option name="unit">minutes ago</option>
+        </format>
+        <format type="color" field="Last Reported">
+          <colorPalette type="map">{"&gt; 24 Hours":#DC4E41}</colorPalette>
+        </format>
+        <drilldown>
+          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/asset_investigator?form.asset=$row.Host$</link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Unclassified Assets Detected</title>
+      <table>
+        <search>
+          <query>| tstats `summariesonly` values(All_Traffic.src) as sources from datamodel=Network_Traffic.All_Traffic where All_Traffic.action="allowed" by All_Traffic.src,All_Traffic.dvc,All_Traffic.dest 
+| `drop_dm_object_name("All_Traffic")` 
+| eval combined_field=src."|".dest."|".dvc 
+| table src,dest,combined_field 
+| fields combined_field 
+| makemv delim="|" combined_field 
+| mvexpand combined_field 
+| lookup cip_ip_ranges.csv subnet as combined_field OUTPUTNEW location as ip_site_id 
+| search ip_site_id!="NONE" 
+| `get_cip_info_by_ip(combined_field, "host")` 
+| eval host_classification=CASE(
+    match(host_category, ".*TCA.*"), "TCA",
+    isnull(host_classification), "Unclassified",
+    1=1, host_classification) 
+| search host_classification="Unclassified" 
+| eval nt_host=if(isnull(nt_host), combined_field, nt_host) 
+| eval ip=combined_field, site_id=ip_site_id 
+| dedup nt_host,ip 
+| table nt_host,ip,ip_site_id 
+| rename nt_host as Host, ip as IP, ip_site_id as "Subnet site_id"</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">cell</option>
+        <drilldown>
+          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/asset_investigator?form.asset=$row.IP$</link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html id="element3">
+        <h1>
+          <i class="fas fa-map-marked" style="font-size: 34px;color:#FF5733"/>  Assets By Location</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      	
+
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Assets by Priority and site_id</title>
+      <viz type="leaflet_maps_app.maps-plus">
+        <search base="baseAssetSearch">
+          <query>| stats count by classification, lat, long, nt_host, site_id, asset_type
+| eval latitude=lat, longitude=long, tooltip=nt_host + " - " + site_id
+| eval markerColor=case(
+match(classification, ".*BES-HIGH.*"), "orange",
+match(classification, ".*BES-MEDIUM.*"), "yellow",
+1=1, "green")
+| `get_cip_type_and_icon(asset_type, icon, asset_master_category)`
+| `get_cip_asset_type(classification, cip_asset_type)`
+|  eval markerColor=CASE(
+cip_asset_type="BCA", "red",
+cip_asset_type="PCA", "blue",
+cip_asset_type="TCA", "orange",
+cip_asset_type="EACM", "green",
+cip_asset_type="PAS", "yellow",
+1=1, "grey")
+| eval group=asset_master_category
+| table latitude, longitude, tooltip, markerColor, icon</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">391</option>
+        <option name="leaflet_maps_app.maps-plus.allPopups">0</option>
+        <option name="leaflet_maps_app.maps-plus.animate">1</option>
+        <option name="leaflet_maps_app.maps-plus.autoFitAndZoom">1</option>
+        <option name="leaflet_maps_app.maps-plus.autoFitAndZoomDelay">500</option>
+        <option name="leaflet_maps_app.maps-plus.bingMaps">0</option>
+        <option name="leaflet_maps_app.maps-plus.bingMapsLabelLanguage">en-US</option>
+        <option name="leaflet_maps_app.maps-plus.bingMapsTileLayer">CanvasLight</option>
+        <option name="leaflet_maps_app.maps-plus.cluster">1</option>
+        <option name="leaflet_maps_app.maps-plus.contextMenu">1</option>
+        <option name="leaflet_maps_app.maps-plus.criticalThreshold">80</option>
+        <option name="leaflet_maps_app.maps-plus.defaultHeight">850</option>
+        <option name="leaflet_maps_app.maps-plus.disableClusteringAtZoom">0</option>
+        <option name="leaflet_maps_app.maps-plus.drilldown">0</option>
+        <option name="leaflet_maps_app.maps-plus.drilldownAction">dblclick</option>
+        <option name="leaflet_maps_app.maps-plus.fullScreen">0</option>
+        <option name="leaflet_maps_app.maps-plus.googlePlacesPosition">topleft</option>
+        <option name="leaflet_maps_app.maps-plus.googlePlacesSearch">0</option>
+        <option name="leaflet_maps_app.maps-plus.googlePlacesZoomLevel">12</option>
+        <option name="leaflet_maps_app.maps-plus.heatmapBlur">15</option>
+        <option name="leaflet_maps_app.maps-plus.heatmapColorGradient">{"0.4":"blue","0.6":"cyan","0.7":"lime","0.8":"yellow","1":"red"}</option>
+        <option name="leaflet_maps_app.maps-plus.heatmapEnable">0</option>
+        <option name="leaflet_maps_app.maps-plus.heatmapMinOpacity">1.0</option>
+        <option name="leaflet_maps_app.maps-plus.heatmapOnly">0</option>
+        <option name="leaflet_maps_app.maps-plus.heatmapRadius">25</option>
+        <option name="leaflet_maps_app.maps-plus.i18nLanguage">en</option>
+        <option name="leaflet_maps_app.maps-plus.layerControl">0</option>
+        <option name="leaflet_maps_app.maps-plus.layerControlCollapsed">1</option>
+        <option name="leaflet_maps_app.maps-plus.mapCenterLat">39.50</option>
+        <option name="leaflet_maps_app.maps-plus.mapCenterLon">-98.35</option>
+        <option name="leaflet_maps_app.maps-plus.mapCenterZoom">6</option>
+        <option name="leaflet_maps_app.maps-plus.mapTile">http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png</option>
+        <option name="leaflet_maps_app.maps-plus.maxClusterRadius">80</option>
+        <option name="leaflet_maps_app.maps-plus.maxSpiderfySize">100</option>
+        <option name="leaflet_maps_app.maps-plus.maxZoom">19</option>
+        <option name="leaflet_maps_app.maps-plus.measureActiveColor">#00ff00</option>
+        <option name="leaflet_maps_app.maps-plus.measureCompletedColor">#0066ff</option>
+        <option name="leaflet_maps_app.maps-plus.measureIconPosition">topright</option>
+        <option name="leaflet_maps_app.maps-plus.measureLocalization">en</option>
+        <option name="leaflet_maps_app.maps-plus.measurePrimaryAreaUnit">acres</option>
+        <option name="leaflet_maps_app.maps-plus.measurePrimaryLengthUnit">feet</option>
+        <option name="leaflet_maps_app.maps-plus.measureSecondaryAreaUnit">sqmiles</option>
+        <option name="leaflet_maps_app.maps-plus.measureSecondaryLengthUnit">miles</option>
+        <option name="leaflet_maps_app.maps-plus.measureTool">0</option>
+        <option name="leaflet_maps_app.maps-plus.minZoom">1</option>
+        <option name="leaflet_maps_app.maps-plus.multiplePopups">0</option>
+        <option name="leaflet_maps_app.maps-plus.pathColorList">#0003F0,#D43C29,darkgreen,0xe2d400,darkred,#23A378</option>
+        <option name="leaflet_maps_app.maps-plus.pathSplitInterval">60</option>
+        <option name="leaflet_maps_app.maps-plus.pathSplits">0</option>
+        <option name="leaflet_maps_app.maps-plus.permanentTooltip">0</option>
+        <option name="leaflet_maps_app.maps-plus.playbackSpeed">100</option>
+        <option name="leaflet_maps_app.maps-plus.playbackTickLength">50</option>
+        <option name="leaflet_maps_app.maps-plus.rangeOneBgColor">#B5E28C</option>
+        <option name="leaflet_maps_app.maps-plus.rangeOneFgColor">#6ECC39</option>
+        <option name="leaflet_maps_app.maps-plus.rangeThreeBgColor">#FD9C73</option>
+        <option name="leaflet_maps_app.maps-plus.rangeThreeFgColor">#F18017</option>
+        <option name="leaflet_maps_app.maps-plus.rangeTwoBgColor">#F1D357</option>
+        <option name="leaflet_maps_app.maps-plus.rangeTwoFgColor">#F0C20C</option>
+        <option name="leaflet_maps_app.maps-plus.refreshInterval">0</option>
+        <option name="leaflet_maps_app.maps-plus.renderer">svg</option>
+        <option name="leaflet_maps_app.maps-plus.scrollWheelZoom">0</option>
+        <option name="leaflet_maps_app.maps-plus.showPathLines">0</option>
+        <option name="leaflet_maps_app.maps-plus.showPlayback">0</option>
+        <option name="leaflet_maps_app.maps-plus.showPlaybackDateControl">1</option>
+        <option name="leaflet_maps_app.maps-plus.showPlaybackPlayControl">1</option>
+        <option name="leaflet_maps_app.maps-plus.showPlaybackSliderControl">1</option>
+        <option name="leaflet_maps_app.maps-plus.showProgress">0</option>
+        <option name="leaflet_maps_app.maps-plus.singleMarkerMode">0</option>
+        <option name="leaflet_maps_app.maps-plus.spiderfyDistanceMultiplier">1</option>
+        <option name="leaflet_maps_app.maps-plus.stickyTooltip">1</option>
+        <option name="leaflet_maps_app.maps-plus.warningThreshold">55</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </viz>
+    </panel>
+  </row>
+</form>

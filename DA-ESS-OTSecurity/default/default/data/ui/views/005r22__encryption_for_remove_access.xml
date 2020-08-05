@@ -1,0 +1,93 @@
+<form theme="light">
+  <label>005-R2.2 - Encryption for Remote Access</label>
+  <description>For all Interactive Remote Access
+sessions, utilize encryption that
+terminates at an Intermediate System.</description>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>src_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| makemv zone delim="|"
+| mvexpand zone
+| search zone="esp:*" `get_high_medium_cip_assets(classification)`
+| eval zone=replace(zone, "esp:", "")
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>src_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+|  search `get_high_medium_cip_assets(classification)`
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok">
+      <label>Time Period</label>
+      <default>
+        <earliest>-4h@m</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <table>
+        <title>Encryption not being utilized</title>
+        <search>
+          <query>`get_firewall_datasources` *ms-rdp* OR *vpn* OR *ssh* 
+| fillnull encrypted,dest_site_id,dest_zone value="Unknown" 
+| search action=allowed encrypted=No 
+| `get_cip_info_by_ip(dest, "dest")` 
+| `get_cip_info_by_ip(src, "src")` 
+| fillnull dest_zone,src_zone value="esp:External" 
+| `get_cip_asset_type(src_classification, cip_asset_type)` 
+| search `get_high_medium_cip_assets(src_classification)` cip_asset_type="PCA" OR cip_asset_type="BCA" $espZone_tok$ $site_id_tok$ 
+| mvexpand src_nt_host 
+| mvexpand dest_nt_host 
+| mvexpand dest_zone 
+| mvexpand src_zone 
+| `get_esp_zone(dest_zone)` 
+| `get_esp_zone(src_zone)` 
+| where dest_zone!=src_zone 
+| eval dest_nt_host=if(isnull(dest_nt_host), dest, dest_nt_host) 
+| eval src_nt_host=if(isnull(src_nt_host), src, src_nt_host) 
+| table _time,src_nt_host,src_zone,dest_nt_host,dest_zone,service 
+| sort -_time 
+| rename src_nt_host as Source, src_zone as "Source Zone", dest_nt_host as Dest, dest_zone as "Dest Zone", service as App</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>

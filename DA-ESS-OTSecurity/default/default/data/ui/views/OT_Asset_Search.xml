@@ -1,0 +1,195 @@
+<form theme="light" stylesheet="available_icons.css">
+  <label>OT Asset Search</label>
+  <fieldset submitButton="true">
+    <input type="multiselect" token="INPUT_LEVEL" searchWhenChanged="true">
+      <label>Asset Criticality</label>
+      <choice value="critical">Critical</choice>
+      <choice value="high">High</choice>
+      <choice value="medium">Medium</choice>
+      <choice value="low">Low</choice>
+      <choice value="unknown">Unknown</choice>
+      <default>critical,high,medium</default>
+      <prefix>( </prefix>
+      <suffix>) </suffix>
+      <initialValue>critical,high,medium</initialValue>
+      <valuePrefix>priority=</valuePrefix>
+      <delimiter> OR </delimiter>
+    </input>
+    <input type="dropdown" token="INPUT_CVE">
+      <label>Include CVEs</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="time" token="INPUT_TIME" searchWhenChanged="true">
+      <label>Analysis Windows</label>
+      <default>
+        <earliest>0</earliest>
+        <latest></latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html>
+        <div>
+        User Selected Inputs
+          <div style="font-size:100%;">
+            <a href="/app/$env:app$/$env:page$" style="float:left;font-weight:normal;font-size:100%;color:#FFFFFF;border:1px solid #0ECE11;padding:4px 8px;border-radius:6px;background-color:#0ECE11;">Reset Dashboard</a>
+            <p style="float:left;font-weight:normal;color:#dc4e41;border:1px solid #A9A9A9;padding:4px 16px;border-radius:6px;background-color:#D2D2D2;margin:0 0 0 10px;">
+              INPUT_LEVEL: <span style="color:#FFFFFF;">$INPUT_LEVEL$</span>
+            </p>            
+            <p style="float:left;font-weight:normal;color:#dc4e41;border:1px solid #A9A9A9;padding:4px 16px;border-radius:6px;background-color:#D2D2D2;margin:0 0 0 10px;">
+              INPUT_CVE: <span style="color:#FFFFFF;">$INPUT_CVE$</span>
+            </p>
+            
+          </div>
+        </div>
+      </html>
+    </panel>
+  </row>
+  <row>
+
+    
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-microchip" style="font-size: 34px;color:#FF5733"/> Search for Hardware Assets</h1>
+        <div style="height:5px;background-color:#009933;margin:0px;"/>
+      </html>
+      <title>Selected Hardware Assets in Details</title>
+      <input type="dropdown" token="INPUT_FIELD" searchWhenChanged="true">
+        <label>Search Field</label>
+        <choice value="asset_id">asset_id</choice>
+        <choice value="nt_host">nt_host</choice>
+        <choice value="asset_vendor">asset_vendor</choice>
+        <choice value="name">software_name</choice>
+        <default>asset_id</default>
+        <initialValue>asset_id</initialValue>
+      </input>
+      <input type="text" token="INPUT_SEARCH_PATT" searchWhenChanged="true">
+        <label>Search Pattern</label>
+        <default>*</default>
+        <initialValue>*</initialValue>
+        <prefix>*</prefix>
+        <suffix>*</suffix>
+      </input>
+      <table>
+        <title>Selected : $INPUT_LEVEL$</title>
+        <search>
+          <query>`get_ot_assets_hw`
+| search $INPUT_LEVEL$ $INPUT_FIELD$=$INPUT_SEARCH_PATT$
+| table asset_id asset_vendor asset_model asset_type classification priority exposure location status zone</query>
+          <earliest>0</earliest>
+          <latest></latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="priority">
+          <colorPalette type="map">{"critical":#AF575A,"high":#F1813F,"medium":#F8BE34,"low":#53A051}</colorPalette>
+        </format>
+        <drilldown>
+          <link target="_blank">/app/Splunk_App_OT_Security/otsec_exp_05?form.INPUT_CVE=$row.cve$</link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fab fa-app-store-ios"  style="font-size: 34px;color:#FF5733"/> Search for Hardware Assets</h1>
+        <div style="height:5px;background-color:#009933;margin:0px;"/>
+      </html>
+      <title>Selected Software Assets in Details</title>
+      <input type="dropdown" token="INPUT_ASSET_VENDOR" searchWhenChanged="true">
+        <label>Asset Vendor</label>
+        <fieldForLabel>asset_vendor</fieldForLabel>
+        <fieldForValue>asset_vendor</fieldForValue>
+        <search>
+          <query>| pivot ot_asset ot_asset count(ot_asset) AS "Count of ot_asset" SPLITROW asset_vendor AS asset_vendor FILTER software = true SORT 100 asset_vendor ROWSUMMARY 0 COLSUMMARY 0 SHOWOTHER 1
+| table asset_vendor</query>
+          <earliest>0</earliest>
+          <latest></latest>
+        </search>
+        <choice value="*">ALL VENDORS</choice>
+        <default>*</default>
+        <initialValue>*</initialValue>
+        <prefix>asset_vendor="</prefix>
+        <suffix>"</suffix>
+      </input>
+      <input type="dropdown" token="INPUT_SW_VENDOR" searchWhenChanged="true">
+        <label>Software Vendor</label>
+        <choice value="*">ALL VENDORS</choice>
+        <fieldForLabel>sw_vendor</fieldForLabel>
+        <fieldForValue>sw_vendor</fieldForValue>
+        <search>
+          <query>| pivot ot_asset ot_asset count(ot_asset) AS "Count of ot_asset" SPLITROW sw_vendor AS sw_vendor FILTER software = true SORT 100 asset_vendor ROWSUMMARY 0 COLSUMMARY 0 SHOWOTHER 1
+| table sw_vendor</query>
+          <earliest>0</earliest>
+          <latest></latest>
+        </search>
+        <default>*</default>
+        <prefix>vendor="</prefix>
+        <suffix>"</suffix>
+        <initialValue>*</initialValue>
+      </input>
+      <input type="dropdown" token="INPUT_CVE_STATUS" searchWhenChanged="true">
+        <label>CVE Selector</label>
+        <choice value="cve=*">All</choice>
+        <choice value="NOT cve=NONE">Asset with CVEs</choice>
+        <default>cve=*</default>
+        <initialValue>cve=*</initialValue>
+      </input>
+      <input type="dropdown" token="INPUT_FIELD" searchWhenChanged="true">
+        <label>Search Field</label>
+        <choice value="asset_id">asset_id</choice>
+        <choice value="asset_model">asset_model</choice>
+        <choice value="asset_vendor">asset_vendor</choice>
+        <choice value="sw_name">sw_name</choice>
+        <default>asset_id</default>
+        <initialValue>asset_id</initialValue>
+      </input>
+      <input type="text" token="INPUT_SEARCH_PATT" searchWhenChanged="true">
+        <label>Search Pattern</label>
+        <default>*</default>
+        <initialValue>*</initialValue>
+        <prefix>*</prefix>
+        <suffix>*</suffix>
+      </input>
+      <table>
+        <title>Selected : $INPUT_LEVEL$</title>
+        <search>
+          <query>`get_ot_assets_sw`
+| search $INPUT_LEVEL$ $INPUT_CVE_STATUS$ cve=$INPUT_CVE$ $INPUT_FIELD$=$INPUT_SEARCH_PATT$ $INPUT_SW_VENDOR$
+| eval cve=mvdedup(cve)
+| table nt_host asset_id asset_vendor asset_type asset_model asset_name type category vendor version priority cve</query>
+          <earliest>0</earliest>
+          <latest></latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="priority">
+          <colorPalette type="map">{"critical":#AF575A,"high":#F1813F,"medium":#F8BE34,"low":#53A051}</colorPalette>
+        </format>
+        <drilldown>
+          <link target="_blank">/app/Splunk_App_OT_Security/otsec_exp_05?form.INPUT_CVE=$row.cve$</link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+</form>

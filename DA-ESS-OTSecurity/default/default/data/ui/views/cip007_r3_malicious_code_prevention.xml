@@ -1,0 +1,439 @@
+<form theme="light" stylesheet="available_icons.css">
+  <label>CIP-007 R3: Malicious Code Prevention</label>
+  <!-- Key indicators -->
+  <fieldset autoRun="true" submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <choice value="Unknown">Unknown</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="category_form" searchWhenChanged="true">
+      <label>Category</label>
+      <choice value="*">All</choice>
+      <search>
+        <query>| `categories`
+| lookup cip_asset_lookup.csv asset_type as category OUTPUTNEW classification
+| search classification="*cip:*"
+| fields category</query>
+        <earliest>-1s</earliest>
+        <latest>now</latest>
+      </search>
+      <fieldForValue>category</fieldForValue>
+      <fieldForLabel>category</fieldForLabel>
+      <change>
+        <condition match="len($value$) &gt; 0">
+          <set token="category_dm" submit="false">(Malware_Attacks.dest_category=$value|s$ OR Malware_Attacks.user_category=$value|s$)</set>
+        </condition>
+        <condition match="len($value$) == 0">
+          <set token="category_dm" submit="false"></set>
+        </condition>
+      </change>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="dropdown" token="action" searchWhenChanged="true">
+      <label>Action</label>
+      <choice value="*">All</choice>
+      <search>
+        <earliest>-1s</earliest>
+        <latest>now</latest>
+        <query>| `cim_malware_actions`</query>
+      </search>
+      <fieldForValue>action</fieldForValue>
+      <fieldForLabel>action</fieldForLabel>
+      <change>
+        <condition match="len($value$) &gt; 0">
+          <set token="action_dm" submit="false">Malware_Attacks.action=$value|s$</set>
+        </condition>
+        <condition match="len($value$) == 0">
+          <set token="action_dm" submit="false"></set>
+        </condition>
+      </change>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="time" searchWhenChanged="true">
+      <label>Time</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="link" token="showRegulation_tok" searchWhenChanged="true">
+      <label>CIP Requirements</label>
+      <choice value="true">Show</choice>
+      <choice value="false">Hide</choice>
+      <default>false</default>
+      <initialValue>false</initialValue>
+      <change>
+        <condition value="true">
+          <set token="showRegulation_tok">true</set>
+        </condition>
+        <condition value="false">
+          <unset token="showRegulation_tok"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-shield-alt" style="font-size: 34px;color:#FF5733"/>  Malicious Code Detection</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <h1>R3.1 - Deploy method(s) to deter, detect, or prevent malicious code.</h1>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Require Malicious Code Protected Installed</title>
+      <single>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv 
+| eval dest_zone=zone, dest_site_id=site_id
+| search requires_av="TRUE" $site_id_tok$ $espZone_tok$ 
+| eval av_installed="False"
+|  join type=left nt_host 
+    [ | from inputlookup:malware_operations_tracker 
+    | eval av_installed="True"
+    | eval nt_host=dest
+    | fields nt_host,av_installed ]
+| search av_installed="False"
+| stats dc(nt_host)</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="height">77</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,5,10]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="trendInterval">-24h</option>
+        <option name="underLabel">Hosts</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Malicious Code Protection is Installed</title>
+      <single>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv 
+| eval dest_zone=zone, dest_site_id=site_id
+| search requires_av="TRUE" $site_id_tok$ $espZone_tok$ 
+| eval av_installed="False"
+|  join type=left nt_host 
+    [ | from inputlookup:malware_operations_tracker 
+    | eval av_installed="True"
+    | eval nt_host=dest
+    | fields nt_host,av_installed ]
+| search av_installed="True"
+| stats dc(nt_host)</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="height">70</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,5,10]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="trendInterval">-24h</option>
+        <option name="underLabel">Hosts</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Malware Activity Over Time By Action</title>
+      <chart id="element2">
+        <search>
+          <query>| `tstats` count from datamodel=Malware.Malware_Attacks where Malware_Attacks.action=$action|s$ by _time,Malware_Attacks.action,Malware_Attacks.dest span=10m 
+| `drop_dm_object_name("Malware_Attacks")` 
+| `get_cip_info_by_hostname(dest, "dest")` 
+| `get_cip_info_by_ip(dest, "dest")` 
+| search  $site_id_tok$ $espZone_tok$ 
+| timechart minspan=10m useother=`useother` count by action</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+        </search>
+        <option name="charting.axisTitleX.text">time</option>
+        <option name="charting.axisTitleY.text">count</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.drilldown">all</option>
+        <option name="charting.fieldColors">{"allowed": 0xD25B3B, "blocked": 0x64A43D, "deferred": 0x66B3FF, "unknown": 0x999999}</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="refresh.display">progressbar</option>
+        <drilldown>
+          <link>malware_search?form.action=$click.name2$&amp;earliest=$earliest$&amp;latest=$latest$</link>
+        </drilldown>
+      </chart>
+    </panel>
+    <panel>
+      <title>Malware Activity Over Time By Signature</title>
+      <chart id="element3">
+        <search>
+          <query>| `tstats` count from datamodel=Malware.Malware_Attacks where Malware_Attacks.action=$action|s$ by _time,Malware_Attacks.signature,Malware_Attacks.dest span=10m 
+| `drop_dm_object_name("Malware_Attacks")` 
+| `get_cip_info_by_hostname(dest, "dest")` 
+| `get_cip_info_by_ip(dest, "dest")` 
+| search $site_id_tok$ $espZone_tok$ 
+| timechart minspan=10m useother=`useother` count by signature</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+        </search>
+        <option name="charting.axisTitleX.text">time</option>
+        <option name="charting.axisTitleY.text">count</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.drilldown">all</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisEnd</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="refresh.display">progressbar</option>
+        <drilldown>
+          <link>malware_search?form.signature=$click.name2$&amp;earliest=$earliest$&amp;latest=$latest$</link>
+        </drilldown>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-arrow-alt-circle-up" style="font-size: 34px;color:#FF5733"/>  Update Signature and Patterns</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <h1>R3.2 - Have a process for the update of the signatures or patterns</h1>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Signature Updates</title>
+      <single>
+        <search>
+          <query>| tstats count from datamodel=Malware.Malware_Operations where Malware_Operations.dest=* by _time,host,sourcetype,Malware_Operations.dest,Malware_Operations.vendor_product,Malware_Operations.signature_version
+| `drop_dm_object_name("Malware_Operations")`
+| `get_cip_info_by_hostname(dest, "dest")` 
+| search dest_classification="*cip*" dest_site_id="*" dest_zone="*esp:**" dest_requires_av="TRUE"
+| timechart span=1h sum(count)</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="height">87</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="trendInterval">-24h</option>
+        <option name="underLabel">Signature Updates</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Outdated EP Signatures</title>
+      <single>
+        <search>
+          <query>| from inputlookup:malware_operations_tracker 
+| rename time_signature_version as _time | `dayDiff` 
+| `get_cip_info_by_hostname(dest, "dest")`
+| search dest_requires_av="TRUE" $site_id_tok$ $espZone_tok$
+| where dayDiff &gt;= 3
+| stats dc(dest)</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="height">88</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,5,10]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="trendInterval">-24h</option>
+        <option name="underLabel">Hosts</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Signature Updates Over Time by Host</title>
+      <chart>
+        <search>
+          <query>| tstats count from datamodel=Malware.Malware_Operations where Malware_Operations.dest=* by _time,host,sourcetype,Malware_Operations.dest,Malware_Operations.vendor_product,Malware_Operations.signature_version
+| `drop_dm_object_name("Malware_Operations")`
+| `get_cip_info_by_hostname(dest, "dest")` 
+| search dest_classification="*cip*" dest_site_id="*" dest_zone="*esp:**" dest_requires_av="TRUE"
+| timechart sum(count) by dest</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.text">time</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text"># Updates</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">none</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Outdated Endpoint Protection</title>
+      <table>
+        <search>
+          <query>| from inputlookup:malware_operations_tracker 
+| rename time_signature_version as _time | `dayDiff` 
+| `get_cip_info_by_hostname(dest, "dest")`
+| search $site_id_tok$ $espZone_tok$ dest_requires_av="TRUE"
+| where dayDiff &gt;= 3
+|  `get_esp_zone(dest_zone)`
+| table _time,dest_nt_host,dayDiff,dest_zone,dest_site_id
+| sort -dayDiff
+| rename dest_nt_host as Host dayDiff as "Days Since Last Update", dest_site_id as Facility, dest_zone as "ESP Zone"
+| convert ctime(_time) as "Last Update"</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="number" field="Days Since Last Update">
+          <option name="precision">1</option>
+          <option name="unit">day(s)</option>
+        </format>
+        <format type="color" field="Days Since Last Update">
+          <colorPalette type="list">[#53A051,#F8BE34,#F1813F,#DC4E41]</colorPalette>
+          <scale type="threshold">4,10,15</scale>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

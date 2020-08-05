@@ -1,0 +1,113 @@
+<form>
+  <label>002-R1.1 - Identify High Impact BES Assets</label>
+  <description>Identify each of the high impact BES Cyber Systems according to Attachment 1, Section 1, if any, at each asset.</description>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| search  classification="*cip:eap*" classification="*cip:high*"
+| makemv zone delim="|"
+| mvexpand zone
+| search zone="esp:*"
+| eval zone=replace(zone, "esp:", "")
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+|  search classification="*cip:high*"
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="cipAssetType_tok" searchWhenChanged="true">
+      <label>CIP Asset Type</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>cip_asset_type="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>cip_asset_type</fieldForLabel>
+      <fieldForValue>cip_asset_type</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| rex field=classification ".*cip:(?&lt;cip_asset_type&gt;(BCA|PCA|TCA|PAS|EACM){1})"
+| dedup cip_asset_type sortby cip_asset_type
+| fields cip_asset_type</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="assetType_tok" searchWhenChanged="true">
+      <label>Role</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>asset_type="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>asset_type</fieldForLabel>
+      <fieldForValue>asset_type</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv 
+| dedup asset_type sortby asset_type</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <table>
+        <title>High Impact BES Impact Assets</title>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv 
+| search classification="*cip:high*" $espZone_tok$ $site_id_tok$ $assetType_tok$
+| makemv zone delim="|"
+| makemv category delim="|"
+| rex field=classification ".*cip:(?&lt;bes_impact&gt;(high|medium|low){1})"
+| rex field=classification ".*cip:(?&lt;cip_asset_type&gt;(BCA|PCA|TCA|PAS|EACM){1})"
+| fillnull bes_impact,asset_type value="Not classified"
+| search $cipAssetType_tok$
+|  `get_esp_zone(zone)`
+|  table bes_impact,cip_asset_type, site_id, nt_host, ip, mac, zone, bunit
+
+| sort site_id,classification,nt_host
+| rename bes_impact as "BES Impact", cip_asset_type as "Asset Type" nt_host as Host, ip as IP, mac as MAC, zone as Zone, bunit as "Business Unit", site_id as "Facility", function as "Function"</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">50</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>

@@ -1,0 +1,80 @@
+<form>
+  <label>007-R4.1.1 - Successful Login Attempts</label>
+  <description>Log events at the BES Cyber System level (per BES Cyber System capability) or at the Cyber Asset level (per Cyber Asset capability) for identification of, and after-the-fact investigations of, Cyber Security Incidents that includes detected successful login attempts</description>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| makemv zone delim="|"
+| mvexpand zone
+| search `get_high_medium_cip_assets(classification)`
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+|  search `get_high_medium_cip_assets(classification)`
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <table>
+        <search>
+          <query>| tstats `summariesonly` count from datamodel=Authentication WHERE Authentication.action="success" by _time,Authentication.src,Authentication.action,Authentication.user,Authentication.app,Authentication.signature,Authentication.dest
+| `drop_dm_object_name("Authentication")`
+| lookup cip_asset_lookup.csv nt_host as src OUTPUTNEW site_id as src_site_id,zone as src_zone, classification as src_classification
+| lookup cip_asset_lookup.csv dns as src OUTPUTNEW site_id as src_site_id,zone as src_zone, classification as src_classification
+| lookup cip_asset_lookup.csv nt_host as dest OUTPUTNEW site_id as dest_site_id,zone as dest_zone, classification as dest_classification
+| lookup cip_asset_lookup.csv dns as dest OUTPUTNEW site_id as dest_site_id,zone as dest_zone, classification as dest_classification
+| fillnull src_zone,dest_zone value="esp:unknown"
+| fillnull src_classification,dest_classification value="unknown"
+| `get_cip_asset_type(dest_classification, cip_asset_type)`
+| search `get_high_medium_cip_assets(dest_classification)` (cip_asset_type="BCA" OR cip_asset_type="PCA" OR cip_asset_type="EACM" OR cip_asset_type="PAC") $espZone_tok$ $site_id_tok$
+| `get_esp_zone(dest_zone)`
+| `get_esp_zone(src_zone)`
+| sort -_time
+| table _time,src,src_zone,src_site_id,app,user,dest,dest_zone,dest_site_id
+| rename src as Source, src_user as Account, app as App, dest as Destination count as "Attempts", src_site_id as "Source Facility", src_zone as "Source Zone(s)", dest_site_id as "Dest Facility", dest_zone as "Dest Zone(s)", user as User</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="count">25</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

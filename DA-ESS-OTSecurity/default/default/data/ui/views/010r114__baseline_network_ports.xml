@@ -1,0 +1,92 @@
+<form>
+  <label>010-R1.1.4 - Baseline Network Ports</label>
+  <description>Develop a baseline configuration, individually or by group, which shall include the following items any logical network accessible ports.</description>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>host_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| makemv zone delim="|"
+| mvexpand zone
+| search `get_high_medium_cip_assets(classification)`
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>host_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+|  search `get_high_medium_cip_assets(classification)`
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <table>
+        <title>Port Configurations</title>
+        <search>
+          <query>| inputlookup cip_network_configs.csv 
+| eval ip=host 
+| `get_cip_info_by_ip(host, "host")` 
+| search $espZone_tok$ $site_id_tok$ 
+| eval host=host_nt_host,exists="False" 
+| fields ip,host,group_id,host_asset_type,port_enabled,port_id,speed,is_duplex,host_zone,host_site_id 
+| `get_baseline_group` 
+| join type=left group_id, port_id 
+    [| `get_portconfig_baseline` 
+    | eval baseline_enabled=is_enabled,baseline_speed=speed,baseline_duplex=is_duplex 
+    | fields baseline_id,group_id, port_id, baseline_enabled, baseline_speed, baseline_duplex] 
+| search baseline_id=* 
+| eval match_speed=if(speed=baseline_speed, 1, 0), match_enabled=if(baseline_enabled=port_enabled, 1, 0), match_duplex=if(baseline_duplex=is_duplex, 1, 0)
+| eval Deviation=if(match_enabled=1, "No", "Yes")
+| `get_esp_zone(host_zone)` 
+| table ip,host,host_zone,host_site_id,port_id,port_enabled,baseline_enabled,Deviation
+| sort -Deviation
+| rename ip as IP, host as Host, host_zone as "ESP Host", port_id as "Port ID", port_enabled as "Current Port Enabled", baseline_enabled as "Baseline Port Enabled", host_site_id as "Facility"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="count">25</option>
+        <option name="drilldown">none</option>
+        <format type="color" field="Baseline Matches Installed">
+          <colorPalette type="map">{"Yes":#53A051,"No":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="Baseline Approved">
+          <colorPalette type="map">{"Yes - Approved":#53A051,"No - Not Approved":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="Deviation">
+          <colorPalette type="map">{"Yes":#DC4E41}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

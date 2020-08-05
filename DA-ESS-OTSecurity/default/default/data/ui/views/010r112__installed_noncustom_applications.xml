@@ -1,0 +1,98 @@
+<form>
+  <label>010-R1.1.2 - Installed Non-Custom Applications</label>
+  <description>Develop a baseline configuration, individually or by group, which shall include any commercially available or open-source application software (including version) intentionally installed.</description>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>host_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| makemv zone delim="|"
+| mvexpand zone
+| search `get_high_medium_cip_assets(classification)`
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>host_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+|  search `get_high_medium_cip_assets(classification)`
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <table>
+        <title>Commerical and Open Source Applications Installed</title>
+        <search>
+          <query>`get_installedapps_datasources` 
+    [| inputlookup cip_asset_lookup.csv 
+    | rename nt_host as host 
+    | fields host] 
+| `get_baseline_group` 
+| `get_cip_info_by_hostname(host, "host")` 
+| search host_site_id="*" $espZone_tok$
+| fillnull DisplayVersion,DisplayName,Publisher value="NA" 
+| eval DisplayName=replace(DisplayName, ",", " "),Publisher=replace(Publisher, ",", "")
+| eval DisplayName=replace(DisplayName, "\"", "")
+| eval value=DisplayName.":".DisplayVersion.":".Publisher 
+| dedup value,host,group_id
+| join type=left group_id,value 
+    [| `get_application_baseline` 
+    | eval value=name.":".version.":".publisher, app_type=software_type, app_state="Yes - Approved"
+    | fields group_id,value,baseline_id,software_type,app_state] 
+| fillnull software_type value="Unknown"
+| fillnull app_state value="No - Not Approved"
+| eval DisplayName=mvindex(value, 0), DisplayVersion=mvindex(value, 1), Publisher=mvindex(value, 2) 
+| makemv delim=":" value 
+| eval DisplayName=mvindex(value, 0), DisplayVersion=mvindex(value, 1), Publisher=mvindex(value, 2) 
+| `get_esp_zone(host_zone)`
+| search software_type="Commercial" OR software_type="Open Source" OR software_type="Unknown"
+| table host,host_zone,host_site_id,software_type,DisplayName,DisplayVersion,Publisher,app_state
+| sort app_state,name,host
+|  rename host as Host, host_zone as "ESP Zone", host_site_id as Facility,DisplayName as Software, DisplayVersion as Version, app_state as "Baseline Approved", software_type as Type</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="count">25</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="Baseline Matches Installed">
+          <colorPalette type="map">{"Yes":#53A051,"No":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="Baseline Approved">
+          <colorPalette type="map">{"Yes - Approved":#53A051,"No - Not Approved":#DC4E41}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

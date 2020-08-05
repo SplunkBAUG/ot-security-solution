@@ -1,0 +1,361 @@
+<form theme="light" stylesheet="available_icons.css">
+  <label>CIP-007 R5: System Access Controls</label>
+  <description>This standard addresses system security by specifying technical, operational, and procedural requirements in support of protecting High and Medium Impact BES Cyber Systems against compromise that could lead to misoperation or instability of the Bulk Electric System.</description>
+  <init>
+    <set token="hostMaliciousFilter_tok">*</set>
+    <set token="espUsbHostFilter">*</set>
+  </init>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>Dest ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_zone="*esp:</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| search  classification="*cip:eap*" 
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="esp_facility_tok" searchWhenChanged="true">
+      <label>Dest Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| search classification="*cip:eap*" 
+| dedup site_id sortby site_id
+| fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="link" token="showRegulation_tok" searchWhenChanged="true">
+      <label>CIP Requirements</label>
+      <choice value="true">Show</choice>
+      <choice value="false">Hide</choice>
+      <default>false</default>
+      <initialValue>false</initialValue>
+      <change>
+        <condition value="true">
+          <set token="showRegulation_tok">true</set>
+        </condition>
+        <condition value="false">
+          <unset token="showRegulation_tok"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-user-slash" style="font-size: 34px;color:#FF5733"/>  Generic and Default Accounts</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <h1>R5.2: Identify and inventory all known enabled default or other generic account types, either by system, by groups of systems, by site_id, or by system type(s).</h1>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <single>
+        <title># Defaults Accounts in Use</title>
+        <search>
+          <query>| tstats `summariesonly` estdc(Authentication.user) as count from datamodel=Authentication.Authentication where earliest=-24h@h latest=+0s Authentication.user_category=default by _time,Authentication.user,Authentication.dest
+| `drop_dm_object_name("Authentication")`
+| `get_cip_info_by_hostname(dest, "dest")`
+| search dest_classification="*cip*" $espZone_tok$ $esp_facility_tok$
+| dedup dest_nt_host,user sortby -_time
+| `get_esp_zone(dest_zone)`
+| timechart dc(user) by dest_zone</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="colorBy">trend</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="height">70</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">inverse</option>
+        <option name="trendInterval">-2h</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title># Priviledged Accounts in Use</title>
+        <search>
+          <query>| tstats `summariesonly` estdc(Authentication.user) as count from datamodel=Authentication.Authentication where Authentication.user_category=priviledged by _time,Authentication.user,Authentication.dest
+| `drop_dm_object_name("Authentication")`
+| `get_cip_info_by_hostname(dest, "dest")`
+| search dest_classification="*cip*" $espZone_tok$ $esp_facility_tok$
+| dedup dest_nt_host,user sortby -_time
+| `get_esp_zone(dest_zone)`
+| timechart dc(user) by dest_zone</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="colorBy">trend</option>
+        <option name="drilldown">none</option>
+        <option name="height">70</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">inverse</option>
+        <option name="trendInterval">-2h</option>
+        <option name="underLabel">Accounts</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Use of default accounts on local machines</title>
+        <search>
+          <query>| tstats `summariesonly` estdc(Authentication.user) as count from datamodel=Authentication.Authentication where earliest=-24h@h latest=+0s Authentication.user_category=default by _time,Authentication.user,Authentication.dest
+| `drop_dm_object_name("Authentication")`
+| `get_cip_info_by_hostname(host, "dest")`
+| search dest_classification="*cip*" $espZone_tok$ $esp_facility_tok$
+| dedup dest_nt_host,user sortby -_time
+| `get_esp_zone(dest_zone)`
+| timechart dc(user) by dest_zone</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="colorBy">trend</option>
+        <option name="drilldown">none</option>
+        <option name="height">70</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">inverse</option>
+        <option name="trendInterval">-2h</option>
+        <option name="underLabel">Accounts</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Default Accounts in Use</title>
+      <table>
+        <search>
+          <query>| tstats `summariesonly` estdc(Authentication.user) as count from datamodel=Authentication.Authentication where earliest=-24h@h latest=+0s Authentication.user_category=default by _time,Authentication.user,Authentication.dest
+| `drop_dm_object_name("Authentication")`
+| `get_cip_info_by_hostname(dest, "dest")`
+| search dest_classification="*cip*" $espZone_tok$ $esp_facility_tok$
+| dedup dest_nt_host,user sortby -_time
+| `get_esp_zone(dest_zone)`
+| table dest_nt_host,user,dest_zone,dest_site_id,_time
+| rename dest_nt_host as Host, user as Account,dest_zone as "ESP Zone",_time as "Last Use", dest_site_id as site_id
+| convert ctime("Last Use")</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+    <panel>
+      <title>Privileged Account Usage</title>
+      <table>
+        <search>
+          <query>| tstats `summariesonly` estdc(Authentication.user) as count from datamodel=Authentication.Authentication where earliest=-24h@h latest=+0s Authentication.user_category=priviledged by _time,Authentication.user,Authentication.dest
+| `drop_dm_object_name("Authentication")`
+| `get_cip_info_by_hostname(dest, "dest")`
+| search dest_classification="*cip*" $espZone_tok$ $esp_facility_tok$
+| dedup dest_nt_host,user sortby -_time
+| `get_esp_zone(dest_zone)`
+| table dest_nt_host,user,dest_zone,dest_site_id,_time
+| rename dest_nt_host as Host, user as Account,dest_zone as "ESP Zone",_time as "Last Use", dest_site_id as site_id
+| convert ctime("Last Use")</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-user-clock" style="font-size: 34px;color:#FF5733"/>  Password Rotation</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <h1>R5.6: Where technically feasible, for password-only authentication for interactive user access, either technically or procedurally enforce password changes or an obligation to change the password at least once every 15 calendar months.</h1>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Accounts Approaching Reset Threshold</title>
+      <single>
+        <search>
+          <query>| inputlookup cip_identities.csv 
+| rex field=identity "(.*\\\)*(?&lt;Account&gt;.*)" 
+| dedup Account 
+| join type=left Account 
+    [| tstats `summariesonly` latest(_time) as lastUpdate from datamodel=Change.All_Changes where All_Changes.action="modified" OR All_Changes.action="updated" All_Changes.result="*password*" by All_Changes.user 
+    | `drop_dm_object_name("All_Changes")` 
+    | rename user as Account 
+    | fields Account,lastUpdate ] 
+| `dayDiff(lastUpdate)` 
+| rename lastUpdate as "Change Time", category as "Account Type", dayDiff as "Last Update" 
+| convert ctime("Change Time") 
+| table Account, "Account Type", "Change Time", "Last Update" 
+| fillnull "Change Time" value="More than 15 Months Ago" 
+| fillnull "Last Update" value="458" 
+| search "Last Update" &gt; 365 "Last Update" &lt; 458 
+| stats dc(Account)</query>
+          <earliest>-15mon</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="height">70</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0xdc4e41"]</option>
+        <option name="rangeValues">[0]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="underLabel"># Accounts</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Account Reset Breach</title>
+      <single>
+        <search>
+          <query>| inputlookup cip_identities.csv 
+| rex field=identity "(.*\\\)*(?&lt;Account&gt;.*)" 
+| dedup Account 
+| join type=left Account 
+    [| tstats `summariesonly` latest(_time) as lastUpdate from datamodel=Change.All_Changes where All_Changes.action="modified" OR All_Changes.action="updated" All_Changes.result="*password*" by All_Changes.user 
+    | `drop_dm_object_name("All_Changes")` 
+    | rename user as Account 
+    | fields Account,lastUpdate ] 
+| `dayDiff(lastUpdate)` 
+| rename lastUpdate as "Change Time", category as "Account Type", dayDiff as "Last Update" 
+| convert ctime("Change Time") 
+| table Account, "Account Type", "Change Time", "Last Update" 
+| fillnull "Change Time" value="More than 15 Months Ago" 
+| fillnull "Last Update" value="458" 
+| search "Last Update" &gt;= 458 
+| stats dc(Account)</query>
+          <earliest>-15mon</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="height">70</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0xdc4e41"]</option>
+        <option name="rangeValues">[0]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="underLabel"># Accounts</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Accounts with no password reset &gt; 365 Days</title>
+      <table>
+        <search>
+          <query>| inputlookup cip_identities.csv 
+| rex field=identity "(.*\\\)*(?&lt;Account&gt;.*)" 
+| dedup Account 
+| join type=left Account 
+    [| tstats `summariesonly` latest(_time) as lastUpdate from datamodel=Change.All_Changes where All_Changes.action="modified" OR All_Changes.action="updated" All_Changes.result="*password*" by All_Changes.user 
+    | `drop_dm_object_name("All_Changes")` 
+    | rename user as Account 
+    | fields Account,lastUpdate ] 
+| `dayDiff(lastUpdate)` 
+| rename lastUpdate as "Change Time", category as "Account Type", dayDiff as "Last Update" 
+| convert ctime("Change Time") 
+| table Account, "Account Type", "Change Time", "Last Update" 
+| fillnull "Change Time" value="More than 15 Months Ago" 
+| fillnull "Last Update" value="458" 
+| search "Last Update" &gt; 365</query>
+          <earliest>-15mon</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="number" field="Last Update">
+          <option name="precision">1</option>
+          <option name="unit">day(s) ago</option>
+        </format>
+        <format type="color" field="Last Update">
+          <colorPalette type="list">[#53A051,#F1813F,#DC4E41]</colorPalette>
+          <scale type="threshold">365,444</scale>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>
