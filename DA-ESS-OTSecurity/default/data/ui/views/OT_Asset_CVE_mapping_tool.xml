@@ -1,0 +1,132 @@
+<form theme="light" stylesheet="available_icons.css">
+
+  <label>OT Asset to CVE Mapping Tool</label>
+  <fieldset submitButton="true">
+    <input type="text" token="INPUT_SEARCH_PATT" searchWhenChanged="true">
+      <label>Search Product Pattern</label>
+      <default>*</default>
+      <initialValue>*</initialValue>
+    </input>
+    <input type="time" token="INPUT_TIME" searchWhenChanged="true">
+      <label>Search Window</label>
+      <default>
+        <earliest>0</earliest>
+        <latest></latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html>
+        <div>
+        <b>Other Configration Editing Options :</b>
+          <div style="font-size:100%;">
+            <p style="float:left;font-weight:normal;font-size:100%;color:#FFFFFF;border:2px solid #0ECE11;padding:4px 8px;border-radius:6px;background-color:#0ECE11;margin:0 0 0 10px;"><b>Edit :<a href="/app/lookup_editor/lookup_edit?owner=nobody&amp;namespace=DA-ESS-OTSecurity&amp;lookup=ot_asset_vul_join_table.csv&amp;type=csv" style="font-weight:normal;font-size:100%;color:#FFFFFF" target="_edit_prod_"> Product Matching Dictionary </a></b></p>
+            <p style="float:left;font-weight:normal;font-size:100%;color:#FFFFFF;border:2px solid #0ECE11;padding:4px 8px;border-radius:6px;background-color:#0ECE11;margin:0 0 0 10px;"><b>Edit :<a href="/app/lookup_editor/lookup_edit?owner=nobody&amp;namespace=DA-ESS-OTSecurity&amp;lookup=ot_asset_lookup.csv&amp;type=csv" style="font-weight:normal;font-size:100%;color:#FFFFFF" target="_edit_ot_asset_"> OT Asset Lookup </a></b></p>
+            <p style="float:left;font-weight:normal;font-size:100%;color:#FFFFFF;border:2px solid #0ECE11;padding:4px 8px;border-radius:6px;background-color:#0ECE11;margin:0 0 0 10px;"><b>Edit :<a href="/app/lookup_editor/lookup_edit?owner=nobody&amp;namespace=DA-ESS-OTSecurity&amp;lookup=ot_asset_pri_matrix.csv&amp;type=csv" style="font-weight:normal;font-size:100%;color:#FFFFFF" target="_edit_ot_asset_"> OT Asset Priority Assign Matrix </a></b></p>
+            <p style="float:left;font-weight:normal;font-size:100%;color:#FFFFFF;border:2px solid #0ECE11;padding:4px 8px;border-radius:6px;background-color:#0ECE11;margin:0 0 0 10px;"><b>Edit :<a href="/app/lookup_editor/lookup_edit?owner=nobody&amp;namespace=DA-ESS-OTSecurity&amp;lookup=ot_asset_nvd_vul_latest.csv&amp;type=csv" style="font-weight:normal;font-size:100%;color:#FFFFFF" target="_edit_app_config_"> Evaluate latest vulnerability lookup updates</a></b></p>
+
+            <p style="float:left;font-weight:normal;font-size:100%;color:#FFFFFF;border:2px solid #0ECE11;padding:4px 8px;border-radius:6px;background-color:#0ECE11;margin:0 0 0 10px;"><b>Edit :<a href="/app/lookup_editor/lookup_edit?owner=nobody&amp;namespace=DA-ESS-OTSecurity&amp;lookup=ot_security_config&amp;type=csv" style="font-weight:normal;font-size:100%;color:#FFFFFF" target="_edit_app_config_"> App Config </a></b></p>
+
+          </div>
+        </div>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-cubes" style="font-size: 34px;color:#FF5733"/> Matching Product Results Summary</h1>
+        <div style="height:5px;background-color:#009933;margin:0px;"/>
+      </html>
+      <table>
+        <search>
+          <query>index=cve sourcetype="cveproducts" $INPUT_SEARCH_PATT$
+| rex field=_raw max_match=100 "\{(?P&lt;A_SW_CVE_01&gt;\"product_name\".*version_affected\"\:\s+\"[^\"]+\")" 
+| rex mode=sed field=A_SW_CVE_01 "s/[\[\]\{\}]+//g" 
+| mvexpand A_SW_CVE_01 
+| eval _raw=A_SW_CVE_01 
+| extract pairdelim="," kvdelim=":" auto=t 
+| rex field=A_SW_CVE_01 max_match=100 "(?P&lt;A_SW_CVE_02&gt;\"version_value\":\s+\"[\d\.]+\"\,\s+\"version_affected\"\:\s+\".\")" 
+| mvexpand A_SW_CVE_02 
+| eval _raw=A_SW_CVE_02 
+| rex field=A_SW_CVE_02 max_match=100 "\"version_value\"\:\s+\"(?&lt;version_value&gt;[\d\.]+)\"\,\s+\"version_affected\"\:\s+\"(?&lt;version_affected&gt;[^\"])+\"" 
+| rename affects.vendor.vendor_data{}.vendor_name as vendor_name 
+| fillnull value="=" version_affected 
+| eval vendor_name=lower(vendor_name) 
+| eval product_name=lower(product_name) 
+| eval version_value=lower(version_value) 
+| eval cve=lower(cve) 
+| rex mode=sed field=product_name "s/[-_]+/ /g" 
+| rex mode=sed field=version_value "s/[a-z]+//g" 
+| table _time sourcetype vendor_name product_name version_affected version_value cve 
+| dedup vendor_name product_name version_affected version_value 
+| eval cve_nvd_join=vendor_name+":"+product_name 
+| lookup ot_asset_vul_join_table join_key as cve_nvd_join OUTPUT vendor as lookup_vendor, name as lookup_name 
+| eval lookup_name=mvindex(lookup_name,0) 
+| eval lookup_vendor=mvindex(lookup_vendor,0) 
+| strcat lookup_vendor ":" lookup_name cve_asset_join
+| stats count values(version_value) as version_value, values(cve) as cve, values(cve_nvd_join) as cve_nvd_join, values(cve_asset_join) as cve_asset_join by vendor_name product_name 
+| sort - count</query>
+          <earliest>$INPUT_TIME.earliest$</earliest>
+          <latest>$INPUT_TIME.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Matching Product Results - Each Records</title>
+      <table>
+        <search>
+          <query>index=cve sourcetype="cveproducts" $INPUT_SEARCH_PATT$
+| rex field=_raw max_match=100 "\{(?P&lt;A_SW_CVE_01&gt;\"product_name\".*version_affected\"\:\s+\"[^\"]+\")" 
+| rex mode=sed field=A_SW_CVE_01 "s/[\[\]\{\}]+//g" 
+| mvexpand A_SW_CVE_01 
+| eval _raw=A_SW_CVE_01 
+| extract pairdelim="," kvdelim=":" auto=t 
+| rex field=A_SW_CVE_01 max_match=100 "(?P&lt;A_SW_CVE_02&gt;\"version_value\":\s+\"[\d\.]+\"\,\s+\"version_affected\"\:\s+\".\")" 
+| mvexpand A_SW_CVE_02 
+| eval _raw=A_SW_CVE_02 
+| rex field=A_SW_CVE_02 max_match=100 "\"version_value\"\:\s+\"(?&lt;version_value&gt;[\d\.]+)\"\,\s+\"version_affected\"\:\s+\"(?&lt;version_affected&gt;[^\"])+\"" 
+| rename affects.vendor.vendor_data{}.vendor_name as vendor_name 
+| fillnull value="=" version_affected 
+| eval vendor_name=lower(vendor_name) 
+| eval product_name=lower(product_name) 
+| eval version_value=lower(version_value) 
+| eval cve=lower(cve) 
+| rex mode=sed field=product_name "s/[-_]+/ /g" 
+| rex mode=sed field=version_value "s/[a-z]+//g" 
+| table _time sourcetype vendor_name product_name version_affected version_value cve 
+| dedup vendor_name product_name version_affected version_value 
+| eval cve_nvd_join=vendor_name+":"+product_name 
+| lookup ot_asset_vul_join_table join_key as cve_nvd_join OUTPUT vendor as lookup_vendor, name as lookup_name 
+| eval lookup_name=mvindex(lookup_name,0) 
+| eval lookup_vendor=mvindex(lookup_vendor,0) 
+| strcat lookup_vendor ":" lookup_name cve_asset_join</query>
+          <earliest>$INPUT_TIME.earliest$</earliest>
+          <latest>$INPUT_TIME.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>

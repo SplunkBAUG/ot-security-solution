@@ -122,6 +122,17 @@
       </change>
     </input>
   </fieldset>
+  <row>
+    <panel>
+      <html id="element1">
+        <h1>
+          <i class="fas fa-chart-line" style="font-size: 38px;color:#FF5733"/>  Environment Overview</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+
+
+      </html>
+    </panel>
+  </row>
   <row depends="$showRegulation_tok$">
     <panel>
       <html>
@@ -338,8 +349,8 @@
   </row>
   <row>
     <panel>
+      <title>Assets by CIP Asset Type</title>
       <chart>
-        <title>Assets by CIP Asset Type</title>
         <search>
           <query>| inputlookup cip_asset_lookup.csv 
 | fillnull category value="nerc unknown" 
@@ -361,8 +372,8 @@
       </chart>
     </panel>
     <panel>
+      <title>Asset by Role</title>
       <chart>
-        <title>Asset by Role</title>
         <search>
           <query>| inputlookup cip_asset_lookup.csv 
 | fillnull category value="nerc unknown" 
@@ -385,8 +396,19 @@
   </row>
   <row>
     <panel>
+      <html id="element2">
+        <h1>
+          <i class="fab fa-flipboard" style="font-size: 34px;color:#FF5733"/>  Asset Breakdown</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      	
+
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>BCA Asset List</title>
       <table>
-        <title>BCA Asset List</title>
         <search base="baseAssetDetails">
           <query>| search cip_asset_type="BCA"
 | table classification, nt_host, ip, mac, zone, bunit, site_id, asset_type, lastTime,minutesSinceLastReport 
@@ -398,7 +420,6 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
-        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>
@@ -424,8 +445,8 @@
   </row>
   <row>
     <panel>
+      <title>PCA Asset List</title>
       <table>
-        <title>PCA Asset List</title>
         <search base="baseAssetDetails">
           <query>| search cip_asset_type="PCA"
 | table classification, nt_host, ip, mac, zone, bunit, site_id, asset_type, lastTime,minutesSinceLastReport 
@@ -437,7 +458,6 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
-        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>
@@ -463,8 +483,8 @@
   </row>
   <row>
     <panel>
+      <title>TCA Asset List</title>
       <table>
-        <title>TCA Asset List</title>
         <search base="baseAssetDetails">
           <query>| search cip_asset_type="TCA"
 | table nt_host, ip, mac, zone, bunit, site_id, asset_type, lastTime,minutesSinceLastReport 
@@ -476,7 +496,6 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
-        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>
@@ -502,8 +521,8 @@
   </row>
   <row>
     <panel>
+      <title>Unclassified Assets Detected</title>
       <table>
-        <title>Unclassified Assets Detected</title>
         <search>
           <query>| tstats `summariesonly` values(All_Traffic.src) as sources from datamodel=Network_Traffic.All_Traffic where All_Traffic.action="allowed" by All_Traffic.src,All_Traffic.dvc,All_Traffic.dest 
 | `drop_dm_object_name("All_Traffic")` 
@@ -529,11 +548,21 @@
           <latest>now</latest>
         </search>
         <option name="drilldown">cell</option>
-        <option name="refresh.display">progressbar</option>
         <drilldown>
           <link target="_blank">/app/SplunkEnterpriseSecuritySuite/asset_investigator?form.asset=$row.IP$</link>
         </drilldown>
       </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html id="element3">
+        <h1>
+          <i class="fas fa-map-marked" style="font-size: 34px;color:#FF5733"/>  Assets By Location</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      	
+
+      </html>
     </panel>
   </row>
   <row>

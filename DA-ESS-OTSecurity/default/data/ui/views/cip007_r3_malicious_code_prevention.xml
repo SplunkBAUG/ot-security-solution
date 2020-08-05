@@ -1,4 +1,4 @@
-<form>
+<form theme="light" stylesheet="available_icons.css">
   <label>CIP-007 R3: Malicious Code Prevention</label>
   <!-- Key indicators -->
   <fieldset autoRun="true" submitButton="false">
@@ -104,6 +104,15 @@
       </change>
     </input>
   </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-shield-alt" style="font-size: 34px;color:#FF5733"/>  Malicious Code Detection</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
   <row depends="$showRegulation_tok$">
     <panel>
       <html>
@@ -197,8 +206,8 @@
   </row>
   <row>
     <panel>
+      <title>Malware Activity Over Time By Action</title>
       <chart id="element2">
-        <title>Malware Activity Over Time By Action</title>
         <search>
           <query>| `tstats` count from datamodel=Malware.Malware_Attacks where Malware_Attacks.action=$action|s$ by _time,Malware_Attacks.action,Malware_Attacks.dest span=10m 
 | `drop_dm_object_name("Malware_Attacks")` 
@@ -224,8 +233,8 @@
       </chart>
     </panel>
     <panel>
+      <title>Malware Activity Over Time By Signature</title>
       <chart id="element3">
-        <title>Malware Activity Over Time By Signature</title>
         <search>
           <query>| `tstats` count from datamodel=Malware.Malware_Attacks where Malware_Attacks.action=$action|s$ by _time,Malware_Attacks.signature,Malware_Attacks.dest span=10m 
 | `drop_dm_object_name("Malware_Attacks")` 
@@ -249,6 +258,15 @@
           <link>malware_search?form.signature=$click.name2$&amp;earliest=$earliest$&amp;latest=$latest$</link>
         </drilldown>
       </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-arrow-alt-circle-up" style="font-size: 34px;color:#FF5733"/>  Update Signature and Patterns</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
     </panel>
   </row>
   <row depends="$showRegulation_tok$">

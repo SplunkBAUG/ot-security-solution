@@ -1,4 +1,4 @@
-<form theme="light">
+<form theme="light" stylesheet="available_icons.css">
   <label>CIP-010 R4:  Transient Cyber Assets and Removable Media</label>
   <description>Each Responsible Entity shall implement, except under CIP Exceptional Circumstances, one or more documented plan(s) for Transient Cyber Assets and Removable Media.</description>
   <init>
@@ -68,6 +68,15 @@
       </change>
     </input>
   </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-clipboard-check" style="font-size: 38px;color:#FF5733"/>  Transient Cyber Assets</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
   <row depends="$showRegulation_tok$">
     <panel>
       <html>
@@ -77,8 +86,8 @@
   </row>
   <row>
     <panel>
+      <title>TCA Asset List</title>
       <table>
-        <title>TCA Asset List</title>
         <search>
           <query>| inputlookup cip_asset_lookup.csv 
 | fillnull category value="nerc unknown" 
@@ -110,7 +119,6 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
-        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>
@@ -134,8 +142,8 @@
       </table>
     </panel>
     <panel>
+      <title>Unclassified Assets Detected</title>
       <table>
-        <title>Unclassified Assets Detected</title>
         <search>
           <query>| tstats `summariesonly` values(All_Traffic.src) as sources from datamodel=Network_Traffic.All_Traffic where All_Traffic.action="allowed" by All_Traffic.src,All_Traffic.dvc,All_Traffic.dest 
 | `drop_dm_object_name("All_Traffic")` 
@@ -161,8 +169,16 @@
           <latest>$time_tok.latest$</latest>
         </search>
         <option name="drilldown">none</option>
-        <option name="refresh.display">progressbar</option>
       </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fab fa-usb" style="font-size: 38px;color:#FF5733"/>  Removable Media</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
     </panel>
   </row>
   <row depends="$showRegulation_tok$">
@@ -174,8 +190,8 @@
   </row>
   <row>
     <panel>
+      <title>Removable Media Approved List</title>
       <table>
-        <title>Removable Media Approved List</title>
         <search>
           <query>| inputlookup cip_asset_lookup.csv 
 | search asset_type="removable media"
@@ -207,7 +223,6 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
-        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>
@@ -231,8 +246,8 @@
       </table>
     </panel>
     <panel>
+      <title>Removable Media Usage</title>
       <table>
-        <title>Removable Media Usage</title>
         <search>
           <query>`get_removable_media_indexes` 
 | lookup cip_asset_lookup.csv nt_host as ComputerName OUTPUTNEW site_id as dest_site_id,zone as dest_zone, classification, category 
@@ -258,7 +273,6 @@
           <latest>$time_tok.latest$</latest>
         </search>
         <option name="drilldown">none</option>
-        <option name="refresh.display">progressbar</option>
         <format type="number" field="Used">
           <option name="precision">1</option>
           <option name="unit">Minute(s)</option>

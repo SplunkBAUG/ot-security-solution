@@ -1,4 +1,4 @@
-<form theme="light">
+<form theme="light" stylesheet="available_icons.css">
   <label>CIP-005 R2: Interactive Remote Access Management</label>
   <description>To manage electronic access to BES Cyber Systems by specifying a controlled Electronic Security Perimeter in support of protecting BES Cyber Systems against compromise that could lead to misoperation or instability in the BES.</description>
   <search id="baseUnencryptedSearch">
@@ -131,6 +131,15 @@
       </change>
     </input>
   </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-user" style="font-size: 34px;color:#FF5733"/>  Remote Sessions</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
   <row depends="$showRegulation_tok$">
     <panel>
       <html>
@@ -375,6 +384,15 @@
         <option name="drilldown">none</option>
         <option name="refresh.display">progressbar</option>
       </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-user-lock" style="font-size: 34px;color:#FF5733"/>  Encryption and MFA</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
     </panel>
   </row>
   <row depends="$showRegulation_tok$">

@@ -1,4 +1,4 @@
-<form theme="light">
+<form theme="light" stylesheet="available_icons.css">
   <label>CIP-007 R1: Ports and Services</label>
   <description>This standard addresses system security by specifying technical, operational, and procedural requirements in support of protecting High and Medium Impact BES Cyber Systems against compromise that could lead to misoperation or instability of the Bulk Electric System.</description>
   <init>
@@ -66,6 +66,15 @@
       </change>
     </input>
   </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fab fa-usb" style="font-size: 34px;color:#FF5733"/>  Ports and Removable Media</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
   <row depends="$showRegulation_tok$">
     <panel>
       <html>
@@ -75,15 +84,56 @@
   </row>
   <row>
     <panel>
+      <title>Top 20 Ports for ESP Hosts</title>
       <chart>
-        <title>Top 20 Ports for ESP Hosts</title>
-        <search ref="Top 20 Ports for ESP Hosts"></search>
+        <search>
+          <query>| tstats `summariesonly` count from datamodel=Network_Traffic.All_Traffic where All_Traffic.action="allowed" OR All_Traffic.action="unknown"  by _time,All_Traffic.src_port,All_Traffic.dvc 
+| `drop_dm_object_name("All_Traffic")` 
+| lookup cip_asset_lookup.csv ip as dvc OUTPUT classification, location,nt_host,zone
+| search classification="*cip:eap*" location="*" nt_host="*" zone="*esp:*"
+| rename count as items
+| top limit=20 src_port by nt_host</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">collapsed</option>
+        <option name="charting.axisTitleY.visibility">collapsed</option>
+        <option name="charting.axisTitleY2.visibility">collapsed</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">none</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">pie</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
         <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">1</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">small</option>
       </chart>
     </panel>
     <panel>
+      <title>Removable Media Usage by ESP Zone</title>
       <chart>
-        <title>Removable Media Usage by ESP Zone</title>
         <search>
           <query>`get_removable_media_indexes`
 | lookup cip_asset_lookup.csv nt_host as ComputerName OUTPUTNEW site_id as dest_site_id,zone as dest_zone, classification
@@ -120,8 +170,8 @@
       </chart>
     </panel>
     <panel>
+      <title>Removable Media Usage (Top 10)</title>
       <chart>
-        <title>Removable Media Usage (Top 10)</title>
         <search>
           <query>`get_removable_media_indexes`
 | lookup cip_asset_lookup.csv nt_host as ComputerName OUTPUTNEW site_id as dest_site_id,zone as dest_zone, classification, category
@@ -147,8 +197,8 @@
   </row>
   <row>
     <panel>
+      <title>Physical Port Configuration</title>
       <table>
-        <title>Physical Port Configuration</title>
         <search>
           <query>|  inputlookup cip_network_configs.csv
 |  eval ip=host
@@ -171,8 +221,8 @@
       </table>
     </panel>
     <panel>
+      <title>Traffic - New Port Activity</title>
       <table>
-        <title>Traffic - New Port Activity</title>
         <search>
           <query>| tstats summariesonly=true min(_time) as "firstTime",max(_time) as "lastTime" from datamodel="Network_Traffic"."All_Traffic" where "All_Traffic.action"="allowed" by "All_Traffic.transport","All_Traffic.dest_port","All_Traffic.dest"
 | `drop_dm_object_name("All_Traffic")`
@@ -201,8 +251,8 @@
   </row>
   <row>
     <panel>
+      <title>Removable Media Events</title>
       <table>
-        <title>Removable Media Events</title>
         <search>
           <query>`get_removable_media_indexes` 
 | lookup cip_asset_lookup.csv nt_host as ComputerName OUTPUTNEW site_id as dest_site_id,zone as dest_zone, classification, category

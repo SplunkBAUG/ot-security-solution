@@ -1,4 +1,4 @@
-<form theme="light">
+<form theme="light" stylesheet="available_icons.css">
   <label>CIP-007 R4.2: Security Event Monitoring</label>
   <description>Log events at the BES Cyber System level (per BES Cyber System capability) or at the Cyber Asset level (per Cyber Asset capability) for identification of, and after-the-fact investigations of, Cyber Security Incidents</description>
   <search id="baseRemoteSearch">
@@ -40,16 +40,16 @@
       <label>Dest Facility</label>
       <choice value="*">All</choice>
       <initialValue>*</initialValue>
-      <valuePrefix>dest_location="</valuePrefix>
+      <valuePrefix>dest_site_id="</valuePrefix>
       <valueSuffix>"</valueSuffix>
       <delimiter> OR </delimiter>
-      <fieldForLabel>location</fieldForLabel>
-      <fieldForValue>location</fieldForValue>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
       <search>
         <query>| inputlookup cip_asset_lookup.csv
 | search classification="*cip:eap*" 
-| dedup location sortby location
-| fields location</query>
+| dedup site_id sortby site_id
+| fields site_id</query>
         <earliest>-24h@h</earliest>
         <latest>now</latest>
       </search>
@@ -70,6 +70,15 @@
       </change>
     </input>
   </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-file-signature" style="font-size: 34px;color:#FF5733"/>  Event Logging</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
   <row depends="$showRegulation_tok$">
     <panel>
       <html>
@@ -85,6 +94,8 @@
           <query>| inputlookup cip_asset_lookup.csv 
 | search asset_type!="PLC" asset_type!="OT Device" asset_type!="removable media"
 | eval extracted_host=nt_host 
+| eval dest_site_id=site_id, dest_zone=zone
+| search is_expected="TRUE" $esp_facility_tok$ $espZone_tok$
 | join type=left extracted_host 
     [| tstats `summariesonly` min(_time) as lastEventDate from datamodel=Authentication.Authentication by Authentication.src,host 
     | `drop_dm_object_name("Authentication")` 
@@ -120,7 +131,8 @@
     | `drop_dm_object_name("Authentication")` 
     | eval nt_host=if(host="127.0.0.1", src, host) 
     | fields nt_host,lastEventDate] 
-| search classification="*cip*" 
+| eval dest_site_id=site_id, dest_zone=zone 
+| search is_expected="TRUE" $esp_facility_tok$ $espZone_tok$ 
 | `get_esp_zone(zone)` 
 | fillnull lastEventDate value="Unknown" 
 | eval _time=lastEventDate 
@@ -161,6 +173,8 @@
         <search>
           <query>| inputlookup cip_asset_lookup.csv 
 | search requires_av="TRUE" 
+| eval dest_site_id=site_id, dest_zone=zone
+| search is_expected="TRUE" $esp_facility_tok$ $espZone_tok$
 | eval extracted_host=nt_host 
 | join type=left extracted_host 
     [| pivot Malware Malware_Operations earliest(_time) AS firstDate SPLITROW dest 
@@ -189,6 +203,8 @@
         <search>
           <query>| inputlookup cip_asset_lookup.csv 
 | search requires_av="TRUE" 
+| eval dest_site_id=site_id, dest_zone=zone
+| search is_expected="TRUE" $esp_facility_tok$ $espZone_tok$
 | join type=left nt_host 
     [| from inputlookup:malware_operations_tracker 
     | eval nt_host=dest, lastReportTime=_time 
@@ -226,11 +242,65 @@
   </row>
   <row>
     <panel>
+      <title>Failure in Logging</title>
       <table>
-        <title>Failure in Logging</title>
-        <search ref="CIP-007: Requirement R4.2.2"></search>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv 
+| search asset_type!="PLC" asset_type!="OT Device" asset_type!="removable media" 
+|  `get_cip_asset_type(classification, cip_asset_type)`
+| eval dest_site_id=site_id, dest_zone=zone
+| search is_expected="TRUE" $esp_facility_tok$ $espZone_tok$
+| join type=left nt_host 
+    [| tstats `summariesonly` latest(_time) as lastReportTime from datamodel=Authentication.Authentication by Authentication.src,host 
+    | `drop_dm_object_name("Authentication")` 
+    | eval nt_host=if(host="127.0.0.1", src, host) 
+    | rex field=nt_host "(?&lt;extracted_host&gt;[^\.]+)" 
+    | eventstats min(lastEventDate) as lastEventDate by extracted_host 
+    | eval nt_host=extracted_host 
+    | fields nt_host,lastReportTime] 
+| eval category="Authentication" 
+| append 
+    [| inputlookup cip_asset_lookup.csv 
+    | search requires_av="TRUE" 
+    | join type=left extracted_host 
+        [| pivot Malware Malware_Operations latest(_time) AS firstDate SPLITROW dest 
+        | eval lastReportTime=strptime(firstDate, "%Y-%m-%dT%H:%M:%S.%3Q%z") 
+        | rex field=dest "(?&lt;extracted_host&gt;[^\.]+)" 
+        | eval nt_host=extracted_host 
+        | fields nt_host,lastReportTime] 
+    | eval category="Malicious Code" ] 
+| `get_esp_zone(zone)` 
+| fillnull lastReportTime value="Never reported in" 
+| eval _time=lastReportTime 
+| `dayDiff` 
+| eval result=CASE(
+    lastReportTime="Never reported in", "(".category.") ".lastReportTime,
+    dayDiff &gt; 1, "(".category.") Not Reported &gt; 24 Hours",
+    1=1, "Good") 
+| search result!="Good" 
+| dedup nt_host,result,zone sortby category,zone,site_id,nt_host 
+| table nt_host,asset_type,zone,site_id,result 
+| rename nt_host as Host, zone as "ESP Zone",site_id as "Facility", result as Issue, asset_type as "Asset Type"</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="dataOverlayMode">none</option>
         <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
       </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-bullhorn" style="font-size: 34px;color:#FF5733"/>  Malware Alerts</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
     </panel>
   </row>
   <row depends="$showRegulation_tok$">
@@ -242,8 +312,8 @@
   </row>
   <row>
     <panel>
+      <title>Triggered Malware Alerts (last 24 Hours)</title>
       <table>
-        <title>Triggered Malware Alerts (last 24 Hours)</title>
         <search>
           <query>`notable`
 | search search_name="*infect*" OR search_name="*malware*" OR search_name="*outbreak*"
@@ -258,7 +328,6 @@
           <latest>now</latest>
         </search>
         <option name="drilldown">none</option>
-        <option name="refresh.display">progressbar</option>
       </table>
     </panel>
   </row>
