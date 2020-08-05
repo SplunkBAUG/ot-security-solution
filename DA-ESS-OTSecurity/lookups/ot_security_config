@@ -1,0 +1,4 @@
+config_name,value,description
+asset_crit_attributes,asset_type:exposure:location,"During implementation, user selects default asset priority maps based on selected asset attributes.  Selected field should be delimited by "":"""
+asset_output_lookup,ot_asset_lookup.csv,
+ot_vendor_filter,rockwell automation/allen-bradley:siemens:rockwell automation:fujitsu:yokogawa:ge:emerson:rockwell,Vendors filter applies to Vulnerability Bulletin

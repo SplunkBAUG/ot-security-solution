@@ -1,0 +1,16 @@
+Initial Access,Execution,Persistence,Privilege Escalation,Defense Evasion,Credential Access,Discovery,Lateral Movement,Collection,Command And Control,Inhibit Response Function,Impair Process Control,Impact
+Data Historian Compromise,Change Program State,Hooking,Exploitation for Evasion,Control Device Identification,Default Credentials,Automated Collection,Commonly Used Port,Automated Collection,Commonly Used Port,Activate Firmware Update Mode,Brute Force I/O,Damage to Property
+Drive-by Compromise,Command-Line Interface,Module Firmware,Indicator Removal on Host,I/O Module Discovery,Exploitation of Remote Services,Data from Information Repositories,Connection Proxy,Data from Information Repositories,Connection Proxy,Alarm Suppression,Change Program State,Denial of Control
+Engineering Workstation Compromise,Execution through API,Program Download,Masquerading,Network Connection Enumeration,External Remote Services,Detect Operating Mode,Standard Application Layer Protocol,Detect Operating Mode,Standard Application Layer Protocol,Block Command Message,Masquerading,Denial of View
+Exploit Public-Facing Application,Graphical User Interface,Project File Infection,Rogue Master Device,Network Service Scanning,Program Organization Units,Detect Program State, ,Detect Program State, ,Block Reporting Message,Modify Control Logic,Loss of Availability
+External Remote Services,Man in the Middle,System Firmware,Rootkit,Network Sniffing,Remote File Copy,I/O Image, ,I/O Image, ,Block Serial COM,Modify Parameter,Loss of Control
+Internet Accessible Device,Program Organization Units,Valid Accounts,Spoof Reporting Message,Remote System Discovery,Valid Accounts,Location Identification, ,Location Identification, ,Data Destruction,Module Firmware,Loss of Productivity and Revenue
+Replication Through Removable Media,Project File Infection, ,Utilize/Change Operating Mode,Serial Connection Enumeration, ,Monitor Process State, ,Monitor Process State, ,Denial of Service,Program Download,Loss of Safety
+Spearphishing Attachment,Scripting, , , , ,Point & Tag Identification, ,Point & Tag Identification, ,Device Restart/Shutdown,Rogue Master Device,Loss of View
+Supply Chain Compromise,User Execution, , , , ,Program Upload, ,Program Upload, ,Manipulate I/O Image,Service Stop,Manipulation of Control
+Wireless Compromise, , , , , ,Role Identification, ,Role Identification, ,Modify Alarm Settings,Spoof Reporting Message,Manipulation of View
+ , , , , , ,Screen Capture, ,Screen Capture, ,Modify Control Logic,Unauthorized Command Message,Theft of Operational Information
+, , , , , , , , , ,Program Download, , 
+, , , , , , , , , ,Rootkit, , 
+, , , , , , , , , ,System Firmware, , 
+, , , , , , , , , ,Utilize/Change Operating Mode, , 

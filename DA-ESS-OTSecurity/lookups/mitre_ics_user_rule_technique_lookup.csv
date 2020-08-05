@@ -1,0 +1,12 @@
+rule_name,technique_id
+"Endpoint - Prohibited Process Detection - Rule",T810
+"Endpoint - Prohibited Service Detection - Rule",T810
+"ESCU - Add Prohibited Processes to Enterprise Security",T810
+"ESCU - Detect Prohibited Applications Spawning cmd.exe - Rule",T810
+"ESCU - Prohibited Software On Endpoint - Rule",T810
+"Endpoint - High Or Critical Priority Host With Malware - Rule",T810
+"Endpoint - Old Malware Infection - Rule",T810
+"Endpoint - Recurring Malware Infection - Rule",T810
+"ESCU - Detect hosts connecting to dynamic domain providers - Rule",T810
+"ESCU - Detect web traffic to dynamic domain providers - Rule",T810
+"ESCU - Detection of DNS Tunnels - Rule",T817

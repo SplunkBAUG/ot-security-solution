@@ -1,0 +1,86 @@
+﻿tactic_id,tactic_name,technique_id,technique_name
+TA0001,Initial Access,T810,Data Historian Compromise
+TA0001,Initial Access,T817,Drive-by Compromise
+TA0001,Initial Access,T818,Engineering Workstation Compromise
+TA0001,Initial Access,T819,Exploit Public-Facing Application
+TA0001,Initial Access,T822,External Remote Services
+TA0001,Initial Access,T883,Internet Accessible Device
+TA0001,Initial Access,T847,Replication Through Removable Media
+TA0001,Initial Access,T865,Spearphishing Attachment
+TA0001,Initial Access,T862,Supply Chain Compromise
+TA0001,Initial Access,T860,Wireless Compromise
+TA0002,Execution,T875,Change Program State
+TA0002,Execution,T807,Command-Line Interface
+TA0002,Execution,T871,Execution through API
+TA0002,Execution,T823,Graphical User Interface
+TA0002,Execution,T830,Man in the Middle
+TA0002,Execution,T844,Program Organization Units
+TA0002,Execution,T873,Project File Infection
+TA0002,Execution,T853,Scripting
+TA0002,Execution,T863,User Execution
+TA0003,Persistence,T874,Hooking
+TA0003,Persistence,T839,Module Firmware
+TA0003,Persistence,T843,Program Download
+TA0003,Persistence,T873,Project File Infection
+TA0003,Persistence,T857,System Firmware
+TA0003,Persistence,T859,Valid Accounts
+TA0004,Evasion,T820,Exploitation for Evasion
+TA0004,Evasion,T872,Indicator Removal on Host
+TA0004,Evasion,T849,Masquerading
+TA0004,Evasion,T848,Rogue Master Device
+TA0004,Evasion,T851,Rootkit
+TA0004,Evasion,T856,Spoof Reporting Message
+TA0004,Evasion,T858,Utilize/Change Operating Mode
+TA0005,Discovery,T808,Control Device Identification
+TA0005,Discovery,T824,I/O Module Discovery
+TA0005,Discovery,T840,Network Connection Enumeration
+TA0005,Discovery,T841,Network Service Scanning
+TA0005,Discovery,T842,Network Sniffing
+TA0005,Discovery,T846,Remote System Discovery
+TA0005,Discovery,T854,Serial Connection Enumeration
+TA0006,Lateral Movement,T812,Default Credentials
+TA0006,Lateral Movement,T866,Exploitation of Remote Services
+TA0006,Lateral Movement,T822,External Remote Services
+TA0006,Lateral Movement,T844,Program Organization Units
+TA0006,Lateral Movement,T867,Remote File Copy
+TA0006,Lateral Movement,T859,Valid Accounts
+TA0007,Collection,T802,Automated Collection
+TA0007,Collection,T811,Data from Information Repositories
+TA0007,Collection,T868,Detect Operating Mode
+TA0007,Collection,T870,Detect Program State
+TA0007,Collection,T877,I/O Image
+TA0007,Collection,T825,Location Identification
+TA0007,Collection,T801,Monitor Process State
+TA0007,Collection,T861,Point & Tag Identification
+TA0007,Collection,T845,Program Upload
+TA0007,Collection,T850,Role Identification
+TA0007,Collection,T852,Screen Capture
+TA0008,Command and Control,T885,Commonly Used Port
+TA0008,Command and Control,T884,Connection Proxy
+TA0008,Command and Control,T869,Standard Application Layer Protocol
+TA0009,Inhibit Response Function,T800,Activate Firmware Update Mode
+TA0009,Inhibit Response Function,T878,Alarm Suppression
+TA0009,Inhibit Response Function,T803,Block Command Message
+TA0009,Inhibit Response Function,T804,Block Reporting Message
+TA0009,Inhibit Response Function,T805,Block Serial COM
+TA0009,Inhibit Response Function,T809,Data Destruction
+TA0009,Inhibit Response Function,T814,Denial of Service
+TA0009,Inhibit Response Function,T816,Device Restart/Shutdown
+TA0009,Inhibit Response Function,T835,Manipulate I/O Image
+TA0009,Inhibit Response Function,T838,Modify Alarm Settings
+TA0009,Inhibit Response Function,T833,Modify Control Logic
+TA0009,Inhibit Response Function,T843,Program Download
+TA0009,Inhibit Response Function,T851,Rootkit
+TA0009,Inhibit Response Function,T857,System Firmware
+TA0009,Inhibit Response Function,T858,Utilize/Change Operating Mode
+TA0010,Impair Process Control,T806,Brute Force I/O
+TA0010,Impair Process Control,T875,Change Program State
+TA0010,Impair Process Control,T849,Masquerading
+TA0010,Impair Process Control,T833,Modify Control Logic
+TA0010,Impair Process Control,T836,Modify Parameter
+TA0010,Impair Process Control,T839,Module Firmware
+TA0010,Impair Process Control,T843,Program Download
+TA0010,Impair Process Control,T843,Rogue Master Device
+TA0010,Impair Process Control,T881,Service Stop
+TA0010,Impair Process Control,T856,Spoof Reporting Message
+TA0010,Impair Process Control,T855,Unauthorized Command Message
