@@ -49,14 +49,7 @@
     </panel>
   </row>
   <row>
-
-    
     <panel>
-      <html>
-        <h1>
-          <i class="fas fa-microchip" style="font-size: 34px;color:#FF5733"/> Search for Hardware Assets</h1>
-        <div style="height:5px;background-color:#009933;margin:0px;"/>
-      </html>
       <title>Selected Hardware Assets in Details</title>
       <input type="dropdown" token="INPUT_FIELD" searchWhenChanged="true">
         <label>Search Field</label>
@@ -74,8 +67,12 @@
         <prefix>*</prefix>
         <suffix>*</suffix>
       </input>
+      <html>
+        <h1>
+          <i class="fas fa-microchip" style="font-size: 34px;color:#FF5733"/> Search for Hardware Assets</h1>
+        <div style="height:5px;background-color:#009933;margin:0px;"/>
+      </html>
       <table>
-        <title>Selected : $INPUT_LEVEL$</title>
         <search>
           <query>`get_ot_assets_hw`
 | search $INPUT_LEVEL$ $INPUT_FIELD$=$INPUT_SEARCH_PATT$
@@ -88,7 +85,6 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
-        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>
@@ -103,11 +99,6 @@
   </row>
   <row>
     <panel>
-      <html>
-        <h1>
-          <i class="fab fa-app-store-ios"  style="font-size: 34px;color:#FF5733"/> Search for Hardware Assets</h1>
-        <div style="height:5px;background-color:#009933;margin:0px;"/>
-      </html>
       <title>Selected Software Assets in Details</title>
       <input type="dropdown" token="INPUT_ASSET_VENDOR" searchWhenChanged="true">
         <label>Asset Vendor</label>
@@ -164,8 +155,12 @@
         <prefix>*</prefix>
         <suffix>*</suffix>
       </input>
+      <html>
+        <h1>
+          <i class="fab fa-app-store-ios" style="font-size: 34px;color:#FF5733"/> Search for Hardware Assets</h1>
+        <div style="height:5px;background-color:#009933;margin:0px;"/>
+      </html>
       <table>
-        <title>Selected : $INPUT_LEVEL$</title>
         <search>
           <query>`get_ot_assets_sw`
 | search $INPUT_LEVEL$ $INPUT_CVE_STATUS$ cve=$INPUT_CVE$ $INPUT_FIELD$=$INPUT_SEARCH_PATT$ $INPUT_SW_VENDOR$
@@ -179,7 +174,6 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
-        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>
