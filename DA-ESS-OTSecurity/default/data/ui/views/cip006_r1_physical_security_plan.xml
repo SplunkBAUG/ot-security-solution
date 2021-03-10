@@ -1,0 +1,279 @@
+<form theme="light" stylesheet="available_icons.css">
+  <label>CIP-006 R1: Physical Security Plan</label>
+  <description>Each Responsible Entity shall implement one or more documented physical security plan(s) that collectively include all of the applicable requirement parts in CIP-006-6 Table R1</description>
+  <search id="getCertificationState">
+    <query>| inputlookup cip_pra_completion_records
+| eval certification_date=strptime(completion_date, "%m/%d/%Y")
+| eval years_since_completion=(now() - certification_date)/60/60/24/365
+| eval is_overdue=if(years_since_completion &gt;= 7, "Out of Compliance", if(years_since_completion &gt;= 6, "Needs PRA", "Completed"))
+| eval urgency=CASE(
+is_overdue="Out of Compliance", 0,
+is_overdue="Needs PRA", 1,
+1=1, 10)
+| sort urgency
+</query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>zone="*</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-7d@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="link" token="showRegulation_tok" searchWhenChanged="true">
+      <label>CIP Requirements</label>
+      <choice value="true">Show</choice>
+      <choice value="false">Hide</choice>
+      <default>false</default>
+      <initialValue>false</initialValue>
+      <change>
+        <condition value="true">
+          <set token="showRegulation_tok">true</set>
+        </condition>
+        <condition value="false">
+          <unset token="showRegulation_tok"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-user" style="font-size: 34px;color:#FF5733"/>  Physical Access</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <single>
+        <title>Failed Access Attempts</title>
+        <search>
+          <query>`get_physicalaccess_records` 
+|  eval zone=site
+| search result=failure $espZone_tok$
+| timechart span=4h count</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Users Out of Compliance</title>
+      <single>
+        <search base="getCertificationState">
+          <query>| search is_overdue="Out of Compliance"
+| stats count</query>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0xdc4e41"]</option>
+        <option name="rangeValues">[0]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Users</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <p>
+          <h1>R1.4:  Monitor for unauthorized access through a physical access point into a Physical Security Perimeter.</h1>
+        </p>
+      </html>
+    </panel>
+    <panel>
+      <html>
+        <p>
+          <h1>R1.5:  Detect unauthorized access through a physical access point into a Physical Security Perimeter to the personnel identified in the BES Cyber Security Incident response plan within 15 minutes of detection.</h1>
+        </p>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Failed Access Attempts</title>
+      <table>
+        <search>
+          <query>`get_physicalaccess_records` 
+| eval zone=site
+| search result=failure $espZone_tok$
+| eval Name=user_first." ".user_last
+| bin _time span=1d
+| stats count by  _time,user,Name,site,user_priority,user_bunit,access_type
+| rename user as User,site as Facility,location as "Badge Location",user_priority as Priority, user_bunit as "Business Unit", access_type as Access
+| sort -count
+| rename count as "# Failures"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="# Failures">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+      </table>
+    </panel>
+    <panel>
+      <title>Excessive Failed Badge Reads in 15 Minute Interval (&gt;=15 failures)</title>
+      <table>
+        <search>
+          <query>`get_physicalaccess_records` 
+| eval zone=site
+| search result=failure $espZone_tok$
+| eval Name=user_first." ".user_last
+| bin _time span=15min
+| stats count as total_failures by _time,user,site
+| where total_failures&gt;=15</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <p>
+          <h1>R1.7:  Log (through automated means or by personnel who control entry) entry of each individual with authorized unescorted physical access into each Physical Security Perimeter, with information to identify the individual and date and time of entry.</h1>
+        </p>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Local Access to Host and Last Physical Access</title>
+      <table>
+        <search>
+          <query>| pivot Authentication Authentication count(Authentication) AS "Count of Authentication" SPLITROW action AS action SPLITROW dest AS dest SPLITROW _time AS _time PERIOD auto SPLITROW user AS user SPLITROW app AS app FILTER user isNot "ANONYMOUS LOGON" FILTER app is "*local*" 
+`lookup_cip_information(dest, "nt_host")`
+| search category="*nerc*"
+| lookup cip_identities identity as user OUTPUTNEW category as user_category, priority as user_priority
+
+| `get_esp_zone(zone)`
+| search user_category!="*nerc*" $espZone_tok$
+| makemv delim="|" user_category
+| mvexpand user_category
+|  table _time,action, nt_host, ip, zone, site_id,asset_type, user, user_category, user_priority,access_type
+
+| join type=left user zone
+    [ search `get_physicalaccess_records` result="success"
+    | stats latest(_time) as last_access latest(location) as last_location latest(site) as zone by user
+    
+    | fields last_access,user, last_location,zone]
+    | dedup _time,user,nt_host sortby - _time
+    | rename last_access as "Last Badge Scan", last_location as "Last Badge Location", action as "Login Result", nt_host as Host, ip as IP, site_id as Facility, asset_type as "Asset Type", user as User, user_category as "User Category", user_priority as "User Priority", zone as "ESP Zone", access_type as Access
+    | convert ctime("Last Badge Scan")
+    | sort -_time
+    |  eval is_violation=if(match(user_classification, ".*nerc.*"), "No", "Yes")
+    | mvcombine user_category
+| rename is_violation as Violation</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Last Badge Access by Personnel</title>
+      <table>
+        <search>
+          <query>`get_physicalaccess_records` result=success access_type=* 
+|  eval zone=site
+
+| eval day=_time
+| bin day span=1d
+| search $espZone_tok$
+| streamstats count(eval(access_type="ingress")) AS TransactionID BY user,location,site,day
+| stats range(_time) AS duration list(access_type) AS VALUES min(_time) AS badge_in max(_time) as badge_out BY TransactionID user,location,site,day
+| convert ctime(badge_in) ctime(badge_out) ctime(day)
+| eval badge_out=if(duration=0, "on-site", badge_out)
+| table day,site,user,location,badge_in,badge_out
+| rename site as "ESP Zone", day as "Date", user as User, location as Location, badge_in as "Badge In", badge_out as "Badge Out"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <p>
+          <h1>R1.9:  Retain physical access logs of entry of individuals with authorized unescorted physical access into each Physical Security Perimeter for at least ninety calendar days.</h1>
+        </p>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Age of Physical Security Logs</title>
+      <table>
+        <search>
+          <query>`get_physicalaccess_records` result="success"
+ | stats earliest(_time) as earliest_access by site
+ | eval age_of_logs_in_days=(now() - earliest_access)/60/60
+ | convert ctime(earliest_access)
+ | rename site as "ESP Zone", age_of_logs_in_days as "Log Age", earliest_access as "Oldest Record"</query>
+          <earliest>-90d@d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <format type="number" field="Log Age">
+          <option name="precision">1</option>
+          <option name="unit">days</option>
+        </format>
+        <format type="color" field="Log Age">
+          <colorPalette type="list">[#53A051,#F1813F,#F8BE34,#B6C75A]</colorPalette>
+          <scale type="threshold">0,30,70</scale>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

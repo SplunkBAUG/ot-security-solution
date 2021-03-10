@@ -1,0 +1,335 @@
+<form theme="light" stylesheet="available_icons.css">
+  <label>OT Controls : Network &amp; System Access</label>
+  <fieldset submitButton="false">
+    <input type="radio" token="login_type" searchWhenChanged="true">
+      <label>Login Types</label>
+      <choice value="Authentication.action=&quot;*&quot;">All</choice>
+      <choice value="Authentication.action=&quot;fail*&quot;">Failure</choice>
+      <choice value="Authentication.action=&quot;success&quot;">Success</choice>
+      <default>Authentication.action="*"</default>
+      <initialValue>Authentication.action="*"</initialValue>
+    </input>
+    <input type="dropdown" token="site_tok" searchWhenChanged="true">
+      <label>Facility/Site</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup site_id sortby site_id
+| fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="system_tok" searchWhenChanged="true">
+      <label>System</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>asset_system</fieldForLabel>
+      <fieldForValue>asset_system</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup asset_system sortby asset_system
+| fields asset_system</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="bunit_tok" searchWhenChanged="true">
+      <label>Business Unit</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>bunit</fieldForLabel>
+      <fieldForValue>bunit</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup bunit sortby bunit
+| fields bunit</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="user_tok" searchWhenChanged="true">
+      <label>User</label>
+      <choice value="*">Any</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>Authentication.user="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>user</fieldForLabel>
+      <fieldForValue>user</fieldForValue>
+      <search>
+        <query>| pivot Identity_Management All_Identities count(All_Identities) AS "Count of All Identities" SPLITROW identity AS identity ROWSUMMARY 0 COLSUMMARY 0 SHOWOTHER 1
+| dedup identity sortby identity
+| rename identity as user</query>
+        <earliest>-30d@d</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html id="element1">
+        <h1>
+          <i class="fas fa-chart-line" style="font-size: 38px;color:#FF5733"/> OT Network Authentication Activities Overview</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Network &amp; System Access Types</title>
+      <chart>
+        <search>
+          <query>| tstats  count from datamodel=Authentication.Authentication WHERE $login_type$ by _time,Authentication.src,Authentication.user,Authentication.dest,Authentication.action,Authentication.signature,Authentication.app  
+| `drop_dm_object_name("Authentication")` 
+
+| lookup asset_lookup_by_str nt_host as dest OUTPUTNEW asset_type, site_id, category, asset_system, bunit
+| search (site_id=$site_tok|s$) (bunit=$bunit_tok|s$) (asset_system=$system_tok|s$)
+| eval app=if(dest="localhost", "win:local", app) 
+| stats count by app 
+| sort -count</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="charting.chart">bar</option>
+        <option name="charting.chart.showDataLabels">all</option>
+        <option name="charting.drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Accessed Asset Types</title>
+      <chart>
+        <search>
+          <query>| tstats count from datamodel=Authentication.Authentication WHERE $login_type$ by _time,Authentication.src,Authentication.user,Authentication.dest,Authentication.action,Authentication.signature,Authentication.app 
+| `drop_dm_object_name("Authentication")` 
+| lookup asset_lookup_by_str nt_host as dest OUTPUTNEW asset_type, site_id, category, asset_system, bunit
+| search (site_id=$site_tok|s$) (bunit=$bunit_tok|s$) (asset_system=$system_tok|s$)
+|  stats count by asset_type
+| sort -count</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">none</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">pie</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Access Asset by Priority</title>
+      <chart>
+        <search>
+          <query>| tstats `summariesonly` count from datamodel=Authentication.Authentication WHERE $login_type$ by _time,Authentication.src,Authentication.user,Authentication.dest,Authentication.action,Authentication.signature,Authentication.app span=1s 
+| `drop_dm_object_name("Authentication")` 
+| lookup asset_lookup_by_str nt_host as dest OUTPUTNEW asset_type, site_id, category, asset_system, bunit, priority
+| search (site_id=$site_tok|s$) (bunit=$bunit_tok|s$) (asset_system=$system_tok|s$)
+|  stats count by priority
+| sort -count</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">none</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">pie</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Access to Sites by Users</title>
+      <chart>
+        <search>
+          <query>| tstats count from datamodel=Authentication.Authentication WHERE $user_tok$ AND $login_type$ by _time,Authentication.src,Authentication.user,Authentication.dest,Authentication.action,Authentication.signature,Authentication.app 
+| `drop_dm_object_name("Authentication")` 
+| lookup asset_lookup_by_str nt_host as dest OUTPUTNEW asset_type, site_id as site_id, category, asset_system, bunit
+| search (site_id=$site_tok|s$) (bunit=$bunit_tok|s$) (asset_system=$system_tok|s$)
+| timechart count by site_id usenull=false</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">collapsed</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">auto</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">1</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">top</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="height">360</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html id="element2">
+        <h1>
+          <i class="fas fa-chart-line" style="font-size: 38px;color:#FF5733"/> Detailed Network &amp; System Access Stats</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Access Session Summary</title>
+      <input type="text" token="NET_EVT_SEARCH_DVC" searchWhenChanged="true">
+        <label>Destination</label>
+        <default>*</default>
+        <initialValue>*</initialValue>
+        <prefix>Authentication.dest="</prefix>
+        <suffix>"</suffix>
+      </input>
+      <table>
+        <search>
+          <query>| tstats  count from datamodel=Authentication.Authentication WHERE $user_tok$ AND $NET_EVT_SEARCH_DVC$ AND $login_type$ by _time,Authentication.src,Authentication.user,Authentication.dest,Authentication.action,Authentication.signature,Authentication.app 
+| `drop_dm_object_name("Authentication")` 
+| lookup asset_lookup_by_str nt_host as dest OUTPUTNEW asset_type, site_id as site_id, category, asset_system, bunit, asset_model, priority,zone, asset_status
+| search (site_id=$site_tok|s$) (bunit=$bunit_tok|s$) (asset_system=$system_tok|s$)
+| rex field=zone "level[_]*(?&lt;asset_zone&gt;\d+)"
+| rex field=zone mode=sed "s/level[_]*/level /g"
+| eval asset_zone="Level ".asset_zone
+| stats count as "# Logins", values(user) as User by src,dest,asset_type,asset_model,asset_status,priority,asset_system,site_id,asset_zone
+| table src,dest,asset_type,asset_model,asset_status,priority,asset_zone,asset_system,site_id,User,"# Logins"
+|  rename src as Source, dest as Destination, asset_type as "Asset Type", asset_model as "Asset Model", asset_status as Status, priority as Priority, asset_system as System, site_id as Facility, asset_zone as "Perdue Zone"</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="priority">
+          <colorPalette type="map">{"low":#53A051,"medium":#F8BE34,"high":#F1813F,"critical":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="asset_type">
+          <colorPalette type="sharedList"></colorPalette>
+          <scale type="sharedCategory"></scale>
+        </format>
+        <format type="color" field="asset_status">
+          <colorPalette type="map">{"operational":#53A051,"standby":#F8BE34}</colorPalette>
+        </format>
+        <format type="color" field="count">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="Asset Zone">
+          <colorPalette type="minMidMax" maxColor="#FFFFFF" minColor="#006D9C"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="number" field="asset_zone">
+          <option name="precision">0</option>
+          <option name="unit">Level</option>
+          <option name="unitPosition">before</option>
+        </format>
+        <format type="number" field="Asset Zone">
+          <option name="precision">0</option>
+          <option name="unit">Level</option>
+          <option name="unitPosition">before</option>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

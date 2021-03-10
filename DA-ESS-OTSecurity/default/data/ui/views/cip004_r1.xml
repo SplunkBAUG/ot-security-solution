@@ -1,0 +1,160 @@
+<form theme="light" stylesheet="available_icons.css">
+  <label>CIP-004 R1: Security Awareness Training</label>
+  <description>Security awareness that, at least once each calendar quarter, reinforces cyber security practices (which may include associated physical security practices) for the Responsible Entity’s personnel who have authorized electronic or authorized unescorted physical access to BES Cyber Systems.</description>
+  <search id="courseBaseSearch">
+    <query>| inputlookup cip_training_materials
+  | search is_available="TRUE"
+  | eval last_update_epoch=strptime(last_update, "%m/%d/%Y"), last_30_days_epoch=relative_time(now(), "-365d@d"), updated_in_last_30_days=if(last_update_epoch&gt;=last_30_days_epoch, 1, 0)
+  |  stats count as course_count by updated_in_last_30_days</query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <fieldset submitButton="false">
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-90d@d</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="link" token="showRegulation_tok" searchWhenChanged="true">
+      <label>CIP Requirements</label>
+      <choice value="true">Show</choice>
+      <choice value="false">Hide</choice>
+      <default>false</default>
+      <initialValue>false</initialValue>
+      <change>
+        <condition value="true">
+          <set token="showRegulation_tok">true</set>
+        </condition>
+        <condition value="false">
+          <unset token="showRegulation_tok"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-dungeon" style="font-size: 34px;color:#FF5733"/>  Security Training</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <p>
+          <h1>R1:  Each Responsible Entity shall implement one or more documented processes that collectively include each of the applicable requirement parts in CIP-004-6 Table R1 – Security Awareness Program. </h1>
+        </p>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Courses Available</title>
+      <single>
+        <search base="courseBaseSearch">
+          <query>| stats sum(course_count)</query>
+        </search>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Courses Updated</title>
+      <single>
+        <search base="courseBaseSearch">
+          <query>| search updated_in_last_30_days=1 | stats sum(course_count)</query>
+        </search>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <title># Individuals who should receive updates</title>
+      <single>
+        <search>
+          <query>| pivot Email Content sum(recipient_count) AS recipient_count SPLITROW _time AS _time PERIOD auto 
+|  stats sum(recipient_count) as total_recipients</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Security Training Course Updates Sent</title>
+      <table>
+        <search>
+          <query>| `get_cip_training_and_members` 
+| addinfo
+| eval max_time=if(info_max_time ="+Infinity", now(), info_max_time)
+| where last_update_epoch&gt;= info_min_time AND last_update_epoch &lt;= max_time
+| eval recipient=members 
+| join type=left recipient,title 
+    [ | pivot Email Content sum(recipient_count) AS recipient_count SPLITROW _time AS _time PERIOD auto SPLITROW src AS from SPLITROW dest AS recipient SPLITROW subject AS subject SPLITROW file_name AS title
+    | eval recipient=split(recipient, ";") 
+    | mvexpand recipient 
+    | eval has_received_update="TRUE" 
+    | fields _time,title,recipient,has_received_update ] 
+| fillnull has_received_update value="FALSE" 
+| eval Status=if(has_received_update="FALSE", "Needs document email", if(last_update_epoch &gt; last_distribution_date_epoch, "Group update never sent", "Good")) 
+| sort -Status,-last_update_epoch
+| table Status, title, last_update, last_distribution_date, recipient
+
+| rename title as Title, last_update as "Last Update", last_distribution_date as "Update Sent On", recipient as Recipient</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">50</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="Status">
+          <colorPalette type="map">{"Good":#53A051,"Group update never sent":#DC4E41,"Needs document email":#F1813F}</colorPalette>
+        </format>
+      </table>
+    </panel>
+    <panel>
+      <title>Available Security Training Courses</title>
+      <table>
+        <search>
+          <query>| inputlookup cip_training_materials
+| search is_available="TRUE"
+| eval last_update_epoch=strptime(last_update, "%m/%d/%Y")
+| eval distribution_list_name=split(distribution_list_name, "|")
+| mvexpand distribution_list_name
+|  sort -last_update_epoch
+| table title,last_update,distribution_list_name
+
+|  rename title as Title, last_update as "Last Update", members as Member, distribution_list_name as "Update Distribution List"</query>
+          <earliest>0</earliest>
+          <latest></latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="status">
+          <colorPalette type="map">{"Needs to be sent":#DC4E41,"Good":#53A051}</colorPalette>
+        </format>
+        <format type="color" field="Status">
+          <colorPalette type="map">{"Good":#53A051,"Update - Send Update":#DC4E41}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

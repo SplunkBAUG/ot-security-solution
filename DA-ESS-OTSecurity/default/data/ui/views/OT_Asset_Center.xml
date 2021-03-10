@@ -1,6 +1,6 @@
 <form theme="light" stylesheet="available_icons.css">
   <label>OT Asset Center</label>
-  <fieldset submitButton="true">
+  <fieldset submitButton="false" autoRun="false">
     <input type="multiselect" token="INPUT_LEVEL" searchWhenChanged="true">
       <label>Asset Criticality</label>
       <choice value="critical">Critical</choice>
@@ -15,11 +15,50 @@
       <valuePrefix>priority=</valuePrefix>
       <delimiter> OR </delimiter>
     </input>
-    <input type="dropdown" token="INPUT_CVE">
-      <label>Include CVEs</label>
+    <input type="dropdown" token="site_tok" searchWhenChanged="true">
+      <label>Facility/Site</label>
       <choice value="*">All</choice>
       <default>*</default>
       <initialValue>*</initialValue>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup site_id sortby site_id
+| fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="system_tok" searchWhenChanged="true">
+      <label>System</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>asset_system</fieldForLabel>
+      <fieldForValue>asset_system</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup asset_system sortby asset_system
+| fields asset_system</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="bunit_tok" searchWhenChanged="true">
+      <label>Business Unit</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>bunit</fieldForLabel>
+      <fieldForValue>bunit</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup bunit sortby bunit
+| fields bunit</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
     </input>
     <input type="time" token="INPUT_TIME" searchWhenChanged="true">
       <label>Analysis Windows</label>
@@ -65,8 +104,8 @@
       <title>Asset Types</title>
       <chart>
         <search>
-          <query>`get_ot_assets_hw`
-| search $INPUT_LEVEL$ 
+          <query>|  `get_ot_assets_hw`
+| search $INPUT_LEVEL$ site_id=$site_tok|s$ asset_system=$system_tok|s$ bunit=$bunit_tok|s$
 | table nt_host ip asset_id asset_vendor asset_type asset_model type category vendor version asset_criticality cve
 | top asset_type</query>
           <earliest>0</earliest>
@@ -111,8 +150,8 @@
       <title>Asset Models</title>
       <chart>
         <search>
-          <query>`get_ot_assets_hw`
-| search $INPUT_LEVEL$ 
+          <query>|  `get_ot_assets_hw`
+| search $INPUT_LEVEL$ site_id=$site_tok|s$ asset_system=$system_tok|s$ bunit=$bunit_tok|s$
 | table nt_host ip asset_id asset_vendor asset_type asset_model type category vendor version asset_criticality cve
 | top asset_model</query>
           <earliest>0</earliest>
@@ -154,11 +193,11 @@
       </chart>
     </panel>
     <panel>
-      <title>Top 10 Vendors by Asset Count</title>
+      <title>Top 10 OT Vendors by Asset Count</title>
       <chart>
         <search>
-          <query>| inputlookup "ot_asset_lookup"
-| search $INPUT_LEVEL$ 
+          <query>| inputlookup asset_lookup_by_str
+| search $INPUT_LEVEL$ site_id=$site_tok|s$ asset_system=$system_tok|s$ bunit=$bunit_tok|s$
 | search ( asset_vendor=siemens OR asset_vendor="rockwell*" OR asset_vendor="hewlett-packard*" OR asset_vendor="schneider*" OR asset_vendor="mitsubishi*" OR asset_vendor="abb*" OR asset_vendor="ge*" OR asset_vendor="omron*" OR asset_vendor="bosch*" OR asset_vendor="beckhoff*" OR asset_vendor="fuji*" )
 | search asset_model=*
 | stats count by asset_vendor 
@@ -220,7 +259,8 @@
       <chart id="element2">
         <search>
           <query>`get_ot_assets_sw`
-| search $INPUT_LEVEL$
+| lookup asset_lookup_by_str nt_host OUTPUTNEW asset_type, asset_system, asset_status, bunit, site_id
+| search $INPUT_LEVEL$ site_id=$site_tok|s$ asset_system=$system_tok|s$ bunit=$bunit_tok|s$
 | table nt_host asset_id asset_vendor asset_type asset_model sw_name sw_type sw_category sw_vendor sw_version priority cve
 | strcat asset_id " : " asset_model asset_info
 | chart count by cve priority
@@ -243,7 +283,8 @@
       <chart>
         <search>
           <query>`get_ot_assets_sw` 
-| search $INPUT_LEVEL$ cve=$INPUT_CVE$
+| lookup asset_lookup_by_str nt_host OUTPUTNEW asset_type, asset_system, asset_status, bunit, site_id
+| search $INPUT_LEVEL$ site_id=$site_tok|s$ asset_system=$system_tok|s$ bunit=$bunit_tok|s$
 | table nt_host asset_id asset_vendor asset_type asset_model sw_name sw_type sw_category sw_vendor sw_version priority cve
 | strcat asset_id " : " asset_model asset_info
 | chart count by asset_vendor
@@ -293,7 +334,8 @@
       <chart>
         <search>
           <query>`get_ot_assets_sw` 
-| search $INPUT_LEVEL$ cve=$INPUT_CVE$
+| lookup asset_lookup_by_str nt_host OUTPUTNEW asset_type, asset_system, asset_status, bunit, site_id
+| search $INPUT_LEVEL$ site_id=$site_tok|s$ asset_system=$system_tok|s$ bunit=$bunit_tok|s$
 | table nt_host asset_id asset_vendor asset_type asset_model sw_name sw_type sw_category sw_vendor sw_version priority cve
 | strcat asset_id " : " asset_model asset_info
 | chart count by asset_info
@@ -350,23 +392,34 @@
       </input>
       <input type="text" token="INPUT_NT_HOST">
         <label>Network Host</label>
+        <default>*</default>
+        <initialValue>*</initialValue>
       </input>
-      <input type="text" token="INPUT_ASSET_ID">
+      <input type="text" token="INPUT_ASSET_ID" searchWhenChanged="true">
         <label>Asset ID</label>
+        <default>*</default>
+        <initialValue>*</initialValue>
       </input>
-      <input type="text" token="INPUT_ASSET_MODEL">
+      <input type="text" token="INPUT_ASSET_MODEL" searchWhenChanged="true">
         <label>Asset Model</label>
+        <default>*</default>
+        <initialValue>*</initialValue>
       </input>
-      <input type="text" token="INPUT_SW_NAME">
+      <input type="text" token="INPUT_SW_NAME" searchWhenChanged="true">
         <label>Software Name</label>
+        <default>*</default>
+        <initialValue>*</initialValue>
       </input>
       <input type="text" token="INPUT_OTHER_SEARCH">
         <label>Other Search Condition</label>
+        <default>*</default>
+        <initialValue>*</initialValue>
       </input>
       <table>
         <search>
           <query>`get_ot_assets_sw`
-| search $INPUT_LEVEL$ $INPUT_CVE_STATUS$ cve=$INPUT_CVE$
+| lookup asset_lookup_by_str nt_host OUTPUTNEW asset_type, asset_system, asset_status, bunit, site_id
+| search $INPUT_LEVEL$ $INPUT_CVE_STATUS$ nt_host=$INPUT_NT_HOST|s$ asset_id=$INPUT_ASSET_ID|s$ asset_model=$INPUT_ASSET_MODEL|s$ asset_name=$INPUT_SW_NAME|s$ $INPUT_OTHER_SEARCH$ (site_id=$site_tok|s$ asset_system=$system_tok|s$ bunit=$bunit_tok|s$)
 | eval cve=mvdedup(cve)
 | table nt_host asset_id asset_vendor asset_type asset_model asset_name type category vendor version priority cve
 |</query>
@@ -378,6 +431,7 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>

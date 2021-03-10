@@ -21,12 +21,50 @@
       <default>*</default>
       <initialValue>*</initialValue>
     </input>
-    <input type="time" token="INPUT_TIME" searchWhenChanged="true">
-      <label>Analysis Windows</label>
-      <default>
-        <earliest>0</earliest>
-        <latest></latest>
-      </default>
+    <input type="dropdown" token="site_tok" searchWhenChanged="true">
+      <label>Facility/Site</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup site_id sortby site_id
+| fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="system_tok" searchWhenChanged="true">
+      <label>System</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>asset_system</fieldForLabel>
+      <fieldForValue>asset_system</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup asset_system sortby asset_system
+| fields asset_system</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="bunit_tok" searchWhenChanged="true">
+      <label>Business Unit</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>bunit</fieldForLabel>
+      <fieldForValue>bunit</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup bunit sortby bunit
+| fields bunit</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
     </input>
   </fieldset>
   <row>
@@ -53,10 +91,9 @@
       <title>Selected Hardware Assets in Details</title>
       <input type="dropdown" token="INPUT_FIELD" searchWhenChanged="true">
         <label>Search Field</label>
-        <choice value="asset_id">asset_id</choice>
-        <choice value="nt_host">nt_host</choice>
-        <choice value="asset_vendor">asset_vendor</choice>
-        <choice value="name">software_name</choice>
+        <choice value="asset_id">Asset ID</choice>
+        <choice value="nt_host">Host</choice>
+        <choice value="asset_vendor">Asset Vendor</choice>
         <default>asset_id</default>
         <initialValue>asset_id</initialValue>
       </input>
@@ -74,9 +111,18 @@
       </html>
       <table>
         <search>
-          <query>`get_ot_assets_hw`
-| search $INPUT_LEVEL$ $INPUT_FIELD$=$INPUT_SEARCH_PATT$
-| table asset_id asset_vendor asset_model asset_type classification priority exposure location status zone</query>
+          <query>| inputlookup asset_lookup_by_str
+| dedup nt_host, asset_id, ip, mac, asset_vendor, asset_model 
+| table asset_id asset_model asset_status asset_system asset_type asset_vendor asset_version asset_criticality bunit category city classification country dns end_of_support exposure ip is_expected lat location long mac nt_host owner parent_asset_id pci_domain priority product_details requires_av serial should_timesync should_update site_id vlan zone 
+| eval asset_id=lower(asset_id), asset_model=lower(asset_model), asset_status=lower(asset_status), asset_system=lower(asset_system), asset_type=lower(asset_type), asset_vendor=lower(asset_vendor), asset_version=lower(asset_version), asset_criticality=lower(asset_criticality), bunit=lower(bunit), category=lower(category), city=lower(city), classification=lower(classification), country=lower(country), dns=lower(dns), end_of_support=lower(end_of_support), exposure=lower(exposure), ip=lower(ip), is_expected=lower(is_expected), lat=lower(lat), location=lower(location), long=lower(long), mac=lower(mac), nt_host=lower(nt_host), owner=lower(owner), parent_asset_id=lower(parent_asset_id), pci_domain=lower(pci_domain), priority=lower(priority), product_details=lower(product_details), requires_av=lower(requires_av), serial=lower(serial), should_timesync=lower(should_timesync), should_update=lower(should_update), site_id=lower(site_id), vlan=lower(vlan), zone=lower(zone) 
+| table asset_id asset_model asset_status asset_system asset_type asset_vendor asset_version asset_criticality bunit category city classification country dns end_of_support exposure ip is_expected lat location long mac nt_host owner parent_asset_id pci_domain priority product_details requires_av serial should_timesync should_update site_id vlan zone 
+| strcat asset_type ":" exposure ":" location priority_join 
+| eval hw_join=nt_host+":"+asset_id 
+| lookup ot_asset_pri_matrix priority_join as priority_join OUTPUT asset_criticality as priority
+| fillnull priority value="medium"
+| search $INPUT_LEVEL$ $INPUT_FIELD$=$INPUT_SEARCH_PATT$ site_id=$site_tok|s$ asset_system=$system_tok|s$ bunit=$bunit_tok|s$
+| table asset_id asset_vendor asset_model asset_type classification priority exposure site_id status zone
+| rename asset_id as "Asset ID", asset_vendor as Vendor, asset_model as Model asset_type as "Asset Type", classification as Classification, priority as Priority, exposure as Exposure site_id as Facility status as Status, zoner as Zone</query>
           <earliest>0</earliest>
           <latest></latest>
           <sampleRatio>1</sampleRatio>
@@ -85,6 +131,7 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>
@@ -105,8 +152,9 @@
         <fieldForLabel>asset_vendor</fieldForLabel>
         <fieldForValue>asset_vendor</fieldForValue>
         <search>
-          <query>| pivot ot_asset ot_asset count(ot_asset) AS "Count of ot_asset" SPLITROW asset_vendor AS asset_vendor FILTER software = true SORT 100 asset_vendor ROWSUMMARY 0 COLSUMMARY 0 SHOWOTHER 1
-| table asset_vendor</query>
+          <query>| pivot ot_asset ot_asset count(ot_asset) AS "Count of ot_asset" SPLITROW asset_vendor AS asset_vendor
+| dedup asset_vendor sortby asset_vendor
+| fields asset_vendor</query>
           <earliest>0</earliest>
           <latest></latest>
         </search>
@@ -119,11 +167,13 @@
       <input type="dropdown" token="INPUT_SW_VENDOR" searchWhenChanged="true">
         <label>Software Vendor</label>
         <choice value="*">ALL VENDORS</choice>
-        <fieldForLabel>sw_vendor</fieldForLabel>
-        <fieldForValue>sw_vendor</fieldForValue>
+        <fieldForLabel>vendor</fieldForLabel>
+        <fieldForValue>vendor</fieldForValue>
         <search>
-          <query>| pivot ot_asset ot_asset count(ot_asset) AS "Count of ot_asset" SPLITROW sw_vendor AS sw_vendor FILTER software = true SORT 100 asset_vendor ROWSUMMARY 0 COLSUMMARY 0 SHOWOTHER 1
-| table sw_vendor</query>
+          <query>| pivot ot_sw_asset ot_asset count(ot_asset) AS "Count of ot_sw_asset" SPLITROW vendor 
+| eval vendor=replace(vendor, "\\\0", "")
+| dedup vendor sortby vendor
+| fields vendor</query>
           <earliest>0</earliest>
           <latest></latest>
         </search>
@@ -137,18 +187,18 @@
         <choice value="cve=*">All</choice>
         <choice value="NOT cve=NONE">Asset with CVEs</choice>
         <default>cve=*</default>
-        <initialValue>cve=*</initialValue>
+        <initialValue>NOT cve=NONE</initialValue>
       </input>
-      <input type="dropdown" token="INPUT_FIELD" searchWhenChanged="true">
+      <input type="dropdown" token="INPUT_FIELD2" searchWhenChanged="true">
         <label>Search Field</label>
-        <choice value="asset_id">asset_id</choice>
-        <choice value="asset_model">asset_model</choice>
-        <choice value="asset_vendor">asset_vendor</choice>
-        <choice value="sw_name">sw_name</choice>
+        <choice value="asset_id">Asset ID</choice>
+        <choice value="asset_model">Asset Model</choice>
+        <choice value="asset_vendor">Asset Vendor</choice>
+        <choice value="asset_name">Software Name</choice>
         <default>asset_id</default>
         <initialValue>asset_id</initialValue>
       </input>
-      <input type="text" token="INPUT_SEARCH_PATT" searchWhenChanged="true">
+      <input type="text" token="INPUT_SEARCH_PATT2" searchWhenChanged="true">
         <label>Search Pattern</label>
         <default>*</default>
         <initialValue>*</initialValue>
@@ -157,15 +207,19 @@
       </input>
       <html>
         <h1>
-          <i class="fab fa-app-store-ios" style="font-size: 34px;color:#FF5733"/> Search for Hardware Assets</h1>
+          <i class="fab fa-app-store-ios" style="font-size: 34px;color:#FF5733"/> Search for Software Assets</h1>
         <div style="height:5px;background-color:#009933;margin:0px;"/>
       </html>
       <table>
         <search>
           <query>`get_ot_assets_sw`
-| search $INPUT_LEVEL$ $INPUT_CVE_STATUS$ cve=$INPUT_CVE$ $INPUT_FIELD$=$INPUT_SEARCH_PATT$ $INPUT_SW_VENDOR$
+| lookup asset_lookup_by_str nt_host OUTPUTNEW site_id,bunit,asset_system
+| eval vendor=replace(vendor, "\\\0", "")
+| search $INPUT_LEVEL$ $INPUT_CVE_STATUS$ cve=$INPUT_CVE$ $INPUT_FIELD2$=$INPUT_SEARCH_PATT2$ $INPUT_SW_VENDOR$ $INPUT_ASSET_VENDOR$ site_id=$site_tok|s$ asset_system=$system_tok|s$ bunit=$bunit_tok|s$
 | eval cve=mvdedup(cve)
-| table nt_host asset_id asset_vendor asset_type asset_model asset_name type category vendor version priority cve</query>
+
+| table asset_id nt_host asset_type asset_vendor  asset_model asset_name type category vendor version priority cve
+| rename nt_host as Host, asset_id as "Asset ID", asset_vendor as "Asset Vendor", asset_type as "Asset Type", asset_model as "Asset Model", asset_name as "Software Name" type as Type, category as Category,, vendor as Vendor, version as Version, priority as Priority, cve as CVE</query>
           <earliest>0</earliest>
           <latest></latest>
           <sampleRatio>1</sampleRatio>
@@ -174,6 +228,7 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>

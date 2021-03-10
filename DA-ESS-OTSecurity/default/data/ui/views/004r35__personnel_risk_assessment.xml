@@ -1,0 +1,122 @@
+<form theme="light" stylesheet="available_icons.css">
+  <label>004-R3.5 - Personnel Risk Assessment Program</label>
+  <description>Process to ensure that individuals with unescorted physical access have had a personnel risk assessment completed according to Parts 3.1 to 3.4 within the last seven years.</description>
+  <search id="getCertificationState">
+    <query>| inputlookup cip_pra_completion_records
+| search identity=$individual_tok|s$
+| eval certification_date=strptime(completion_date, "%m/%d/%Y")
+| eval years_since_completion=(now() - certification_date)/60/60/24/365
+| eval is_overdue=if(years_since_completion &gt;= 7, "Out of Compliance", if(years_since_completion &gt;= 6, "Needs PRA", "Completed"))
+| eval urgency=CASE(
+is_overdue="Out of Compliance", 0,
+is_overdue="Needs PRA", 1,
+1=1, 10)
+| sort urgency
+</query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <fieldset submitButton="false">
+    <input type="dropdown" token="individual_tok" searchWhenChanged="true">
+      <label>User</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <fieldForLabel>identity</fieldForLabel>
+      <fieldForValue>identity</fieldForValue>
+      <search>
+        <query>| inputlookup cip_identities
+| makemv delim="|" category
+| search category="nerc"
+| eval label=first." ".last
+
+| `remove_identity_prefix` 
+| dedup identity sortby identity</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-90d@d</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="link" token="showRegulation_tok" searchWhenChanged="true">
+      <label>CIP Requirements</label>
+      <choice value="true">Show</choice>
+      <choice value="false">Hide</choice>
+      <default>false</default>
+      <initialValue>false</initialValue>
+      <change>
+        <condition value="true">
+          <set token="showRegulation_tok">true</set>
+        </condition>
+        <condition value="false">
+          <unset token="showRegulation_tok"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>PRA Certifications</title>
+      <table>
+        <search base="getCertificationState">
+          <query>| table identity,completion_date,is_overdue,years_since_completion
+| rename identity as User, completion_date as "Last PRA", is_overdue as Status, years_since_completion as Age</query>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="Age">
+          <colorPalette type="list">[#53A051,#F8BE34,#F1813F,#DC4E41]</colorPalette>
+          <scale type="threshold">5,6,7</scale>
+        </format>
+        <format type="number" field="Age">
+          <option name="precision">1</option>
+          <option name="unit">years</option>
+        </format>
+        <format type="color" field="Status">
+          <colorPalette type="map">{"Out of Compliance":#DC4E41,"Needs PRA":#F1813F,"Completed":#53A051}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Physical Access for Out of Compliance Users</title>
+      <table>
+        <search>
+          <query>`get_physicalaccess_records` result=success 
+| search user=$individual_tok|s$
+| join type=left user 
+    [| inputlookup cip_pra_completion_records 
+    | eval certification_date=strptime(completion_date, "%m/%d/%Y") 
+    | eval years_since_completion=(now() - certification_date)/60/60/24/365 
+    | eval is_overdue=if(years_since_completion &gt;= 7, 1, 0), user=identity 
+    | search is_overdue=1 
+    | fields user,is_overdue] 
+| search is_overdue=1 
+| table _time,user,site,location</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>

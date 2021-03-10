@@ -1,0 +1,82 @@
+<form theme="light" stylesheet="DA-ESS-OTSecurity:available_icons.css">
+  <label>006-R2.2 - Visitor Access Logs</label>
+  <description>Require manual or automated logging of visitor entry into and exit from the Physical Security Perimeter that includes date and time of the initial entry and last exit, the visitor’s name, and the name of an individual point of contact responsible for the visitor, except during CIP Exceptional Circumstances.</description>
+  <search id="getCertificationState">
+    <query>| inputlookup cip_pra_completion_records
+| eval certification_date=strptime(completion_date, "%m/%d/%Y")
+| eval years_since_completion=(now() - certification_date)/60/60/24/365
+| eval is_overdue=if(years_since_completion &gt;= 7, "Out of Compliance", if(years_since_completion &gt;= 6, "Needs PRA", "Completed"))
+| eval urgency=CASE(
+is_overdue="Out of Compliance", 0,
+is_overdue="Needs PRA", 1,
+1=1, 10)
+| sort urgency
+</query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>site="*</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| `get_esp_zone(zone)`
+| `get_cip_asset_type(classification, cip_asset_type)`
+| search `get_high_medium_cip_assets(classification)` cip_asset_type="EACMS" OR cip_asset_type="PCA"
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-7d@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Visitor Activity</title>
+      <table>
+        <search>
+          <query>`get_visitoraccess_records` $espZone_tok$
+|  `get_physical_site_classification(site,location,asset_classification)`
+| search `get_high_medium_cip_assets(asset_classification)`
+| transaction badge_code,location,site startswith=eval(match(access_type, ".*ingress.*")) endswith=eval(match(access_type, ".*egress.*"))
+| eval badge_in=_time, badge_out=_time+duration
+| convert ctime(badge_in) ctime(badge_out) ctime(day)
+| eval badge_out=if(duration=0, "on-site", badge_out), duration=duration/60/60
+| search identity=*
+| table site,badge_code,identity,location,badge_in,badge_out,duration
+| sort -badge_out
+| rename site as "ESP Zone", badge_code as "Badge ID", identity as "Badge Assigned To", location as Location, badge_in as "Badge In", badge_out as "Badge Out"</query>
+          <earliest>0</earliest>
+          <latest></latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="number" field="duration">
+          <option name="precision">1</option>
+          <option name="unit">Hours</option>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

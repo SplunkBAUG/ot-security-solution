@@ -98,9 +98,10 @@
 |  search  $esp_facility_tok$ $espZone_tok$
 | `get_esp_zone(dest_zone)`
 | `get_cip_asset_type(classification, cip_asset_type)`
-| search classification="*cip:EAP*" cip_asset_type="EACM" 
-| table nt_host,ip,vendor_product,asset_type,site_id,description,dest_zone
-| rename nt_host as Asset, vendor_product as Model, asset_type as "CIP Asset Type", ip as IP,site_id as Facility, description as Description, dest_zone as "ESP Zone"</query>
+| search classification="*cip:EAP*" cip_asset_type="EACM"
+| eval Model=asset_vendor + " " + asset_model
+| table nt_host,ip,Model,asset_type,site_id,description,dest_zone
+| rename nt_host as Asset, asset_type as "CIP Asset Type", ip as IP,site_id as Facility, description as Description, dest_zone as "ESP Zone"</query>
           <earliest>-24h@h</earliest>
           <latest>now</latest>
           <sampleRatio>1</sampleRatio>
@@ -109,6 +110,7 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>
@@ -488,7 +490,7 @@
 | fillnull dest_ips,src_ips,user_ips value="any" 
 | table nt_host,ip,dest_zone,firewall_rule,note,action,src_object_group,src_ips,dest_object_group,dest_ips,port,app,user_object_group,user_ips
 | rename nt_host as Host, ip as IP,dest_zone as "ESP Zone", firewall_rule as Rule,note as Description, action as Action, src_object_group as "Source Group", src_ips as "Source IP's", dest_object_group as "Dest Group", dest_ips as "Dest IPs", port as Port, user_object_group as "User Group", user_ips as "Users", app as App</query>
-          <earliest>-90d@d</earliest>
+          <earliest>-365d@d</earliest>
           <latest>now</latest>
           <sampleRatio>1</sampleRatio>
         </search>

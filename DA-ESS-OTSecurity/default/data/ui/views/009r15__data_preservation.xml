@@ -1,0 +1,69 @@
+<form theme="light" stylesheet="DA-ESS-OTSecurity:available_icons.css">
+  <label>009-R1.5 - Data Preservation</label>
+  <description>One or more processes to preserve data, per Cyber Asset capability, for determining the cause of a Cyber Security Incident that triggers activation of the recovery plan(s). Data preservation should not impede or restrict recovery.</description>
+  <search id="getCertificationState">
+    <query>| inputlookup cip_pra_completion_records
+| eval certification_date=strptime(completion_date, "%m/%d/%Y")
+| eval years_since_completion=(now() - certification_date)/60/60/24/365
+| eval is_overdue=if(years_since_completion &gt;= 7, "Out of Compliance", if(years_since_completion &gt;= 6, "Needs PRA", "Completed"))
+| eval urgency=CASE(
+is_overdue="Out of Compliance", 0,
+is_overdue="Needs PRA", 1,
+1=1, 10)
+| sort urgency
+</query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <fieldset submitButton="false">
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-365d@d</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Indexes and Age of Data</title>
+      <table>
+        <search>
+          <query>| rest /services/data/indexes
+| search isInternal=0
+| eval minTime=strptime(minTime, "%Y-%m-%dT%H:%M:%S%z"), maxTime= strptime(maxTime, "%Y-%m-%dT%H:%M:%S%z")
+| eval min_age=(now() - minTime)/60/60/24,max_age=(now() - maxTime)/60/60/24
+| where min_age &gt; 0
+| eval frozenStorageEnabled=if(coldToFrozenDir="", "Disabled", "Enabled")
+| table splunk_server,title,currentDBSizeMB,minTime,maxTime,min_age,max_age,frozenStorageEnabled
+| convert ctime(minTime) ctime(maxTime)
+| sort -min_age
+| rename title as Index, currentDBSizeMB as Size, minTime as Earliest, maxTime as Latest, min_age as Oldest, max_age as Newest,frozenStorageEnabled as "Long Term Retention"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">25</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="number" field="Size">
+          <option name="precision">1</option>
+          <option name="unit">MB</option>
+        </format>
+        <format type="number" field="Oldest">
+          <option name="precision">1</option>
+          <option name="unit">Days</option>
+        </format>
+        <format type="number" field="Newest">
+          <option name="precision">1</option>
+          <option name="unit">Days</option>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

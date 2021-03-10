@@ -1,0 +1,64 @@
+<form theme="light">
+  <label>004-R1.1 - Security Awareness Training</label>
+  <description>Security awareness that, at least once each calendar quarter, reinforces cyber security practices (which may include associated physical security practices) for the Responsible Entity’s personnel who have authorized electronic or authorized unescorted physical access to BES Cyber Systems.</description>
+  <fieldset submitButton="false">
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-365d@d</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Security Training Course Updates Sent</title>
+      <table>
+        <search>
+          <query>| `get_cip_training_and_members` 
+| addinfo
+| eval max_time=if(info_max_time ="+Infinity", now(), info_max_time)
+| where last_update_epoch&gt;= info_min_time AND last_update_epoch &lt;= max_time
+| eval recipient=members 
+| join type=left recipient,title 
+    [ | pivot Email Content sum(recipient_count) AS recipient_count SPLITROW _time AS _time PERIOD auto SPLITROW src AS from SPLITROW dest AS recipient SPLITROW subject AS subject SPLITROW file_name AS title
+    | eval recipient=split(recipient, ";") 
+    | mvexpand recipient 
+    | eval has_received_update="TRUE" 
+    | fields _time,title,recipient,has_received_update ] 
+| fillnull has_received_update value="FALSE" 
+| eval Status=if(has_received_update="FALSE", "Needs document email", if(last_update_epoch &gt; last_distribution_date_epoch, "Group update never sent", "Good")) 
+| sort -Status,-last_update_epoch
+| table Status, title, last_update, last_distribution_date, recipient
+
+| rename title as Title, last_update as "Last Update", last_distribution_date as "Update Sent On", recipient as Recipient</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <table>
+        <title>Available Security Training Courses</title>
+        <search>
+          <query>| inputlookup cip_training_materials
+| search is_available="TRUE"
+| eval last_update_epoch=strptime(last_update, "%m/%d/%Y")
+| eval distribution_list_name=split(distribution_list_name, "|")
+| mvexpand distribution_list_name
+|  sort -last_update_epoch
+| table title,last_update,distribution_list_name
+
+|  rename title as Title, last_update as "Last Update", members as Member, distribution_list_name as "Update Distribution List"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+</form>

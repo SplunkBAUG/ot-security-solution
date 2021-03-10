@@ -1,0 +1,348 @@
+<form theme="light" stylesheet="DA-ESS-OTSecurity:available_icons.css">
+  <label>CIP-009 R1: Recovery Plan Specifications</label>
+  <description>Each Responsible Entity shall have one or more documented recovery plan(s) that collectively include each of the applicable requirement parts in CIP-009-6 Table R1 – Recovery Plan Specifications.</description>
+  <search id="getCertificationState">
+    <query>| inputlookup cip_pra_completion_records
+| eval certification_date=strptime(completion_date, "%m/%d/%Y")
+| eval years_since_completion=(now() - certification_date)/60/60/24/365
+| eval is_overdue=if(years_since_completion &gt;= 7, "Out of Compliance", if(years_since_completion &gt;= 6, "Needs PRA", "Completed"))
+| eval urgency=CASE(
+is_overdue="Out of Compliance", 0,
+is_overdue="Needs PRA", 1,
+1=1, 10)
+| sort urgency
+</query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_zone="*</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>dest_site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="link" token="showRegulation_tok" searchWhenChanged="true">
+      <label>CIP Requirements</label>
+      <choice value="true">Show</choice>
+      <choice value="false">Hide</choice>
+      <default>false</default>
+      <initialValue>false</initialValue>
+      <change>
+        <condition value="true">
+          <set token="showRegulation_tok">true</set>
+        </condition>
+        <condition value="false">
+          <unset token="showRegulation_tok"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-archive" style="font-size: 34px;color:#FF5733"/> Client Backups</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <p>
+          <h1>R1.4:  One or more processes to verify the successful completion of the backup processes in Part 1.3 and to address any backup failures.</h1>
+        </p>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Backups - Success</title>
+      <single>
+        <search>
+          <query>`get_backup_indexes` action=successful
+| search dest_category="nerc" dest_zone="esp:*" $site_id_tok$
+| mvexpand dest_zone
+|  `get_esp_zone(dest_zone)`
+| search $espZone_tok$ 
+| timechart minspan=1h dc(dest)</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="trendInterval">auto</option>
+        <option name="underLabel"># Clients</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Backups - Failed</title>
+      <single>
+        <search>
+          <query>`get_backup_indexes` action=failed
+| search dest_category="nerc" dest_zone="esp:*" $site_id_tok$
+| mvexpand dest_zone
+|  `get_esp_zone(dest_zone)`
+| search $espZone_tok$
+| timechart minspan=1h dc(dest)</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="underLabel"># Clients</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Backups over Time</title>
+      <chart>
+        <search>
+          <query>`get_backup_indexes` action=successful OR action=failed
+| search dest_category="nerc" dest_zone="esp:*" $site_id_tok$
+| mvexpand dest_zone
+|  `get_esp_zone(dest_zone)`
+| search $espZone_tok$
+| timechart minspan=1h count by action</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.abbreviation">none</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Backups by Hosts</title>
+      <table>
+        <search>
+          <query>`get_backup_indexes` action=successful OR action=failed 
+| stats latest(action) as action latest(_time) as lastAttempt by dest,dest_zone,dest_site_id,dest_asset_type,dest_category 
+| `get_esp_zone(dest_zone)` 
+| search dest_category="nerc" $espZone_tok$ $site_id_tok$
+| sort action, -count 
+| table dest,dest_asset_type,dest_zone,dest_site_id,action,lastAttempt
+| convert ctime(lastAttempt)
+| rename dest as Client, action as "Backup Result", dest_asset_type as "Asset Type", dest_zone as "ESP Zone", dest_site_id as "Facility", lastAttempt as "Last Attempt"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="Backup Result">
+          <colorPalette type="map">{"failed":#DC4E41}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-window-restore" style="font-size: 34px;color:#FF5733"/>  Splunk Restoration</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <p>
+          <h1>R1.3:  One or more processes for the backup and storage of information required to recover BES Cyber System functionality.</h1>
+        </p>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        For more information on Clustering and Redudancy, consult the <a href="https://ec2-35-172-64-229.compute-1.amazonaws.com:8000/en-US/app/splunk_monitoring_console/monitoringconsole_overview">Monitoring Console</a>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Cluster State</title>
+      <table>
+        <search>
+          <query>| rest /services/cluster/config
+| table site,mode,multisite,replication_factor,search_factor
+| rename site as Site,mode as "Cluster Mode", multisite as "Multisite Cluster", replication_factor as "Replication Factor", search_factor as "Search Factor"</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-database" style="font-size: 34px;color:#FF5733"/>  Data Retention</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <p>
+          <h1>R1.5:  One or more processes to preserve data, per Cyber Asset capability, for determining the cause of a Cyber Security Incident that triggers activation of the recovery plan(s). Data preservation should not impede or restrict recovery.</h1>
+        </p>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Indexes and Age of Data</title>
+      <table>
+        <search>
+          <query>| rest /services/data/indexes
+| search isInternal=0
+| eval minTime=strptime(minTime, "%Y-%m-%dT%H:%M:%S%z"), maxTime= strptime(maxTime, "%Y-%m-%dT%H:%M:%S%z")
+| eval min_age=(now() - minTime)/60/60/24,max_age=(now() - maxTime)/60/60/24
+| where min_age &gt; 0
+| eval frozenStorageEnabled=if(coldToFrozenDir="", "Disabled", "Enabled")
+| table title,currentDBSizeMB,minTime,maxTime,min_age,max_age,frozenStorageEnabled
+| convert ctime(minTime) ctime(maxTime)
+| sort -min_age
+| rename title as Index, currentDBSizeMB as Size, minTime as Earliest, maxTime as Latest, min_age as Oldest, max_age as Newest,frozenStorageEnabled as "Long Term Retention"</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">5</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="number" field="Size">
+          <option name="precision">1</option>
+          <option name="unit">MB</option>
+        </format>
+        <format type="number" field="Oldest">
+          <option name="precision">1</option>
+          <option name="unit">Days</option>
+        </format>
+        <format type="number" field="Newest">
+          <option name="precision">1</option>
+          <option name="unit">Days</option>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

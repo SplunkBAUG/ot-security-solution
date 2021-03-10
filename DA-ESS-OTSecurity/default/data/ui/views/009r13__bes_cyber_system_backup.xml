@@ -1,0 +1,48 @@
+<dashboard theme="light" stylesheet="DA-ESS-OTSecurity:available_icons.css">
+  <label>009-R1.3 - BES Cyber System Backup</label>
+  <description>One or more processes for the backup and storage of information required to recover BES Cyber System functionality.</description>
+  <search id="getCertificationState">
+    <query>| inputlookup cip_pra_completion_records
+| eval certification_date=strptime(completion_date, "%m/%d/%Y")
+| eval years_since_completion=(now() - certification_date)/60/60/24/365
+| eval is_overdue=if(years_since_completion &gt;= 7, "Out of Compliance", if(years_since_completion &gt;= 6, "Needs PRA", "Completed"))
+| eval urgency=CASE(
+is_overdue="Out of Compliance", 0,
+is_overdue="Needs PRA", 1,
+1=1, 10)
+| sort urgency
+</query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <row>
+    <panel>
+      <html>
+        For more information on Clustering and Redudancy, consult the <a href="https://ec2-35-172-64-229.compute-1.amazonaws.com:8000/en-US/app/splunk_monitoring_console/monitoringconsole_overview">Monitoring Console</a>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Cluster State</title>
+      <table>
+        <search>
+          <query>| rest /services/cluster/config
+| table splunk_server,site,mode,multisite,replication_factor,search_factor
+| rename site as Site,mode as "Cluster Mode", multisite as "Multisite Cluster", replication_factor as "Replication Factor", search_factor as "Search Factor"</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</dashboard>

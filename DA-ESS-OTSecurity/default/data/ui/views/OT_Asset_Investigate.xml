@@ -43,11 +43,21 @@
       </html>
       <table>
         <search>
+          <!--query>| inputlookup asset_lookup_by_str
+| search asset="$INPUT_ASSET$"
+| strcat asset_vendor " : " asset_model asset_vendor_model
+| rex field=zone "level[_]*(?&lt;zone_no&gt;\d+)"
+| table asset nt_host asset_id asset_type asset_vendor_model asset_status priority zone_no exposure asset_system asset_version asset site_id location city
+| rename asset as "Asset", nt_host as "Hostname", priority as "Priority", asset_id as "ID", asset_type as "Type", asset_vendor_model as "Vendor Model", asset_status as "Status", asset_system as "System", asset_version as "Version", site_id as "Site ID", location as "Location", zone_no as "Asset Zone", exposure as "Exposure", city as "City"</query-->
           <query>| inputlookup asset_lookup_by_str
 | search asset="$INPUT_ASSET$"
 | strcat asset_vendor " : " asset_model asset_vendor_model
-| table asset nt_host priority asset_id asset_type asset_vendor_model asset_status asset_system asset_version asset site_id location
-| rename asset as "Asset", nt_host as "Hostname", priority as "Priority", asset_id as "ID", asset_type as "Type", asset_vendor_model as "Vendor Model", asset_status as "Status", asset_system as "System", asset_version as "Version", site_id as "Site ID", location as "Location"</query>
+| mvexpand zone
+| rex field=zone "level[_]*(?&lt;zone_no&gt;\d+)"
+| mvexpand zone_no
+| dedup asset
+| table asset nt_host asset_type asset_vendor asset_model asset_version asset_status priority zone_no zone exposure
+| rename asset as "Asset", nt_host as "Hostname", priority as "Priority", asset_id as "ID", asset_type as "Type", asset_vendor as "Vendor", asset_model as "Model", asset_vendor_model as "Vendor Model", asset_status as "Status", asset_system as "System", asset_version as "Version", site_id as "Site ID", location as "Location", zone_no as "Perdue Zone", exposure as "Exposure", city as "City",, zone as "Zone Info"</query>
           <earliest>-24h@h</earliest>
           <latest>now</latest>
           <sampleRatio>1</sampleRatio>
@@ -56,6 +66,7 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">none</option>
         <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>
@@ -77,6 +88,70 @@
           <colorPalette type="sharedList"></colorPalette>
           <scale type="sharedCategory"></scale>
         </format>
+        <format type="color" field="Status">
+          <colorPalette type="map">{"operational":#53A051,"standby":#708794,"maintenance":#F1813F}</colorPalette>
+        </format>
+        <format type="color" field="Asset Zone">
+          <colorPalette type="minMidMax" maxColor="#FFFFFF" minColor="#006D9C"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="number" field="Exposure"></format>
+        <format type="color" field="Exposure">
+          <colorPalette type="map">{"private":#53A051,"public":#F8BE34}</colorPalette>
+        </format>
+        <format type="number" field="Asset Zone">
+          <option name="precision">0</option>
+          <option name="unit">Level</option>
+          <option name="unitPosition">before</option>
+        </format>
+      </table>
+      <table>
+        <search>
+          <query>| inputlookup asset_lookup_by_str
+| search asset="$INPUT_ASSET$"
+| strcat asset_vendor " : " asset_model asset_vendor_model
+| rex field=zone "level[_]*(?&lt;zone_no&gt;\d+)"
+| mvexpand zone
+| dedup asset
+| table asset_id bunit asset_system site_id location city country lat long
+| rename asset as "Asset", nt_host as "Hostname", priority as "Priority", asset_id as "ID", asset_type as "Type", asset_vendor_model as "Vendor Model", asset_status as "Status", asset_system as "System", asset_version as "Version", site_id as "Site ID", location as "Location", zone_no as "Asset Zone", exposure as "Exposure", city as "City", bunit as "Biz Unit", lat as "Latitude", long as "Longitude", country as "Country"</query>
+          <earliest>-24h@h</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="priority">
+          <colorPalette type="map">{"low":#53A051,"medium":#F8BE34,"high":#F1813F,"critical":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="asset_type">
+          <colorPalette type="sharedList"></colorPalette>
+          <scale type="sharedCategory"></scale>
+        </format>
+        <format type="color" field="asset_status">
+          <colorPalette type="map">{"operational":#53A051,"standby":#F8BE34}</colorPalette>
+        </format>
+        <format type="color" field="Priority">
+          <colorPalette type="map">{"critical":#DC4E41,"high":#F1813F,"medium":#F8BE34,"low":#B6C75A}</colorPalette>
+        </format>
+        <format type="number" field="Type"></format>
+        <format type="color" field="Type">
+          <colorPalette type="sharedList"></colorPalette>
+          <scale type="sharedCategory"></scale>
+        </format>
+        <format type="color" field="Status">
+          <colorPalette type="map">{"operational":#53A051,"standby":#708794,"maintenance":#F1813F}</colorPalette>
+        </format>
+        <format type="color" field="Asset Zone">
+          <colorPalette type="minMidMax" maxColor="#FFFFFF" minColor="#006D9C"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
       </table>
     </panel>
   </row>
@@ -95,15 +170,21 @@
       <single>
         <title>Asset Risk Score Changes</title>
         <search>
-          <query>index=risk risk_object=$INPUT_ASSET$
+          <query>index=risk
+| lookup asset_lookup_by_str dns as risk_object OUTPUTNEW asset_type as dns_asset_type, dns, ip, nt_host
+| lookup asset_lookup_by_str nt_host as risk_object OUTPUTNEW asset_type as host_asset_type, dns, ip, nt_host
+| lookup asset_lookup_by_str ip as risk_object OUTPUTNEW asset_type as ip_asset_type, dns, ip, nt_host
+| search dns=$INPUT_ASSET$ OR nt_host=$INPUT_ASSET$ OR ip=$INPUT_ASSET$
 | bin _time span=1d
 | stats sum(risk_score) as risk_score_curr by _time, risk_object, risk_object_type
-| lookup ot_asset_lookup ip as risk_object 
-| lookup cip_asset_lookup ip as risk_object 
+| lookup asset_lookup_by_str dns as risk_object OUTPUTNEW asset_type as dns_asset_type
+| lookup asset_lookup_by_str nt_host as risk_object OUTPUTNEW asset_type as host_asset_type
+| lookup asset_lookup_by_str ip as risk_object OUTPUTNEW asset_type as ip_asset_type
+| eval asset_type=if(isnull(dns_asset_type), if(isnull(host_asset_type), ip_asset_type, host_asset_type), dns_asset_type)
 | search asset_type=*
 | timechart span=1d sum(risk_score_curr) as risk_score_curr</query>
-          <earliest>-7d@d</earliest>
-          <latest>@d</latest>
+          <earliest>-7d@h</earliest>
+          <latest>now</latest>
           <sampleRatio>1</sampleRatio>
         </search>
         <option name="drilldown">none</option>
@@ -116,7 +197,11 @@
       <single>
         <title>Total number of Hosts in Communication</title>
         <search>
-          <query>| tstats `summariesonly` max(_time) as _time, dc(All_Traffic.src_port) as src_port_cnt, count from datamodel=Network_Traffic.All_Traffic where * (All_Traffic.src="$INPUT_ASSET$" OR All_Traffic.src_ip="$INPUT_ASSET$" OR All_Traffic.src_mac="$INPUT_ASSET$" OR All_Traffic.src_translated_ip="$INPUT_ASSET$") by All_Traffic.src,All_Traffic.dest,All_Traffic.transport,All_Traffic.dest_port, All_Traffic.src_port
+          <query>| tstats `summariesonly` max(_time) as _time, dc(All_Traffic.src_port) as src_port_cnt, count from datamodel=Network_Traffic.All_Traffic where [ |  inputlookup asset_lookup_by_str
+    | search nt_host=$INPUT_ASSET$ OR ip=$INPUT_ASSET$ OR mac=$INPUT_ASSET$ OR dns=$INPUT_ASSET$
+    | eval All_Traffic.src=ip
+    | fields All_Traffic.src]  
+      by All_Traffic.src,All_Traffic.dest,All_Traffic.transport,All_Traffic.dest_port, All_Traffic.src_port
 | `drop_dm_object_name("All_Traffic")` 
 | fields _time,src,src_port,src_port_cnt,dest,transport,dest_port,count
 | timechart span=1d dc(dest) as total_comm_host</query>
@@ -135,10 +220,14 @@
       <single>
         <title>Total number of network ports accessed</title>
         <search>
-          <query>| tstats `summariesonly` max(_time) as _time, dc(All_Traffic.src_port) as src_port_cnt, count from datamodel=Network_Traffic.All_Traffic where * (All_Traffic.src="$INPUT_ASSET$" OR All_Traffic.src_ip="$INPUT_ASSET$" OR All_Traffic.src_mac="$INPUT_ASSET$" OR All_Traffic.src_translated_ip="$INPUT_ASSET$") by All_Traffic.src,All_Traffic.dest,All_Traffic.transport,All_Traffic.dest_port, All_Traffic.src_port
+          <query>| tstats `summariesonly` max(_time) as _time, dc(All_Traffic.src_port) as src_port_cnt, count from datamodel=Network_Traffic.All_Traffic where 
+    [| inputlookup asset_lookup_by_str 
+    | search nt_host=$INPUT_ASSET$ OR ip=$INPUT_ASSET$ OR mac=$INPUT_ASSET$ OR dns=$INPUT_ASSET$ 
+    | eval All_Traffic.src=ip 
+    | fields All_Traffic.src] by All_Traffic.src,All_Traffic.dest,All_Traffic.transport,All_Traffic.dest_port, All_Traffic.src_port 
 | `drop_dm_object_name("All_Traffic")` 
-| fields _time,src,src_port,src_port_cnt,dest,transport,dest_port,count
-| search dest_port&lt;10000
+| fields _time,src,src_port,src_port_cnt,dest,transport,dest_port,count 
+| search dest_port&lt;10000 
 | timechart span=1d dc(dest_port) as dest_port</query>
           <earliest>$INPUT_TIME.earliest$</earliest>
           <latest>$INPUT_TIME.latest$</latest>
@@ -154,9 +243,13 @@
       <single>
         <title>Total number of sessions</title>
         <search>
-          <query>| tstats `summariesonly` max(_time) as _time, dc(All_Traffic.src_port) as src_port_cnt, count from datamodel=Network_Traffic.All_Traffic where * (All_Traffic.src="$INPUT_ASSET$" OR All_Traffic.src_ip="$INPUT_ASSET$" OR All_Traffic.src_mac="$INPUT_ASSET$" OR All_Traffic.src_translated_ip="$INPUT_ASSET$") by All_Traffic.src,All_Traffic.dest,All_Traffic.transport,All_Traffic.dest_port, All_Traffic.src_port
+          <query>| tstats `summariesonly` max(_time) as _time, dc(All_Traffic.src_port) as src_port_cnt, count from datamodel=Network_Traffic.All_Traffic where 
+    [| inputlookup asset_lookup_by_str 
+    | search nt_host=$INPUT_ASSET$ OR ip=$INPUT_ASSET$ OR mac=$INPUT_ASSET$ OR dns=$INPUT_ASSET$ 
+    | eval All_Traffic.src=ip 
+    | fields All_Traffic.src] by All_Traffic.src,All_Traffic.dest,All_Traffic.transport,All_Traffic.dest_port, All_Traffic.src_port 
 | `drop_dm_object_name("All_Traffic")` 
-| fields _time,src,src_port,src_port_cnt,dest,transport,dest_port,count
+| fields _time,src,src_port,src_port_cnt,dest,transport,dest_port,count 
 | timechart span=1d sum(count) as tot_sessions</query>
           <earliest>$INPUT_TIME.earliest$</earliest>
           <latest>$INPUT_TIME.latest$</latest>
@@ -193,11 +286,21 @@
       </html>
       <table>
         <search>
-          <query>| tstats `summariesonly` max(_time) as _time, dc(All_Traffic.src_port) as src_port_cnt, count from datamodel=Network_Traffic.All_Traffic where * (All_Traffic.src="172.104.104.98" OR All_Traffic.src_ip="172.104.104.98" OR All_Traffic.src_mac="172.104.104.98" OR All_Traffic.src_translated_ip="172.104.104.98") by All_Traffic.src,All_Traffic.dest,All_Traffic.transport,All_Traffic.dest_port, All_Traffic.src_port
+          <query>| tstats `summariesonly` max(_time) as _time, dc(All_Traffic.src_port) as src_port_cnt, count from datamodel=Network_Traffic.All_Traffic where 
+    [| inputlookup asset_lookup_by_str 
+    | search nt_host=$INPUT_ASSET$ OR ip=$INPUT_ASSET$ OR mac=$INPUT_ASSET$ OR dns=$INPUT_ASSET$ 
+    | eval All_Traffic.src=ip 
+    | fields All_Traffic.src] OR 
+    [| inputlookup asset_lookup_by_str 
+    | search nt_host=$INPUT_ASSET$ OR ip=$INPUT_ASSET$ OR mac=$INPUT_ASSET$ OR dns=$INPUT_ASSET$ 
+    | eval All_Traffic.dest=ip 
+    | fields All_Traffic.dest] 
+    by All_Traffic.src,All_Traffic.dest,All_Traffic.transport,All_Traffic.dest_port, All_Traffic.src_port 
 | `drop_dm_object_name("All_Traffic")` 
+| search src!=dest
 | sort - count 
-| fields _time,src,src_port,src_port_cnt,dest,transport,dest_port,count
-| rex mode=sed field=dest "s/\.\d+$$//g"
+| fields _time,src,src_port,src_port_cnt,dest,transport,dest_port,count 
+| rex mode=sed field=dest "s/\.\d+$//g" 
 | top dest</query>
           <earliest>$INPUT_TIME.earliest$</earliest>
           <latest>$INPUT_TIME.latest$</latest>
@@ -207,6 +310,7 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>
@@ -243,17 +347,49 @@
       </html>
       <viz type="network-diagram-viz.network-diagram-viz">
         <search>
-          <query>index=* $INPUT_ASSET$ sourcetype=juniper:sslvpn src=$NET_EVT_SEARCH_VIZ_SRC$ dest=$NET_EVT_SEARCH_VIZ_DEST$.* $LINK_INPUT_01$
-| stats count,values(src_asset_type) as src_asset_type, values(src_port) as src_port, values(dest_asset_type) as dest_asset_type, values(dest_port) as dest_port,  sparkline(count) as activity by sourcetype src dest
-| eval type=if(like(src_asset_type,"hist%"), "desktop", "desktop")
-| eval from=src, to=dest, value=count, linkwidth=count
-| table  from to value type linkwidth</query>
+          <query>| tstats `summariesonly` max(_time) as _time, dc(All_Traffic.src_port) as src_port_cnt, count from datamodel=Network_Traffic.All_Traffic where 
+    [ |  inputlookup asset_lookup_by_str
+    | search nt_host=$INPUT_ASSET$ OR ip=$INPUT_ASSET$ OR mac=$INPUT_ASSET$ OR dns=$INPUT_ASSET$
+    | eval All_Traffic.src=ip
+    | fields All_Traffic.src] OR 
+    [ |  inputlookup asset_lookup_by_str
+    | search nt_host=$INPUT_ASSET$ OR ip=$INPUT_ASSET$ OR mac=$INPUT_ASSET$ OR dns=$INPUT_ASSET$ 
+    | eval All_Traffic.dest=ip
+    | fields All_Traffic.dest] 
+     by All_Traffic.src,All_Traffic.dest,All_Traffic.transport,All_Traffic.dest_port, All_Traffic.src_port
+| `drop_dm_object_name("All_Traffic")`
+|  search src=$NET_EVT_SEARCH_VIZ_SRC$ dest=$NET_EVT_SEARCH_VIZ_DEST$.* $LINK_INPUT_01$ src!=dest
+| stats sum(count) as count by src dest
+| lookup asset_lookup_by_str ip as src OUTPUTNEW asset_type
+| lookup asset_lookup_by_str ip as dest OUTPUTNEW asset_type as asset_type_src
+| eval asset_type=if(isnull(asset_type), asset_type_src, asset_type)
+| `get_cip_type_and_icon(asset_type, icon, master_type)`
+| eval from=src, to=dest, value=count, linkwidth=count/100, type=icon, linktext=master_type
+| table  from to value color type linkwidth icon</query>
           <earliest>$INPUT_TIME.earliest$</earliest>
           <latest>$INPUT_TIME.latest$</latest>
           <sampleRatio>1</sampleRatio>
         </search>
         <option name="drilldown">none</option>
         <option name="height">448</option>
+        <option name="network-diagram-viz.network-diagram-viz.arrowLocation">none</option>
+        <option name="network-diagram-viz.network-diagram-viz.canZoom">true</option>
+        <option name="network-diagram-viz.network-diagram-viz.clusterBy">none</option>
+        <option name="network-diagram-viz.network-diagram-viz.defaultNodeType">circle</option>
+        <option name="network-diagram-viz.network-diagram-viz.draggableNodes">true</option>
+        <option name="network-diagram-viz.network-diagram-viz.enablePhysics">true</option>
+        <option name="network-diagram-viz.network-diagram-viz.hierarchy">false</option>
+        <option name="network-diagram-viz.network-diagram-viz.hierarchyDirection">Bottom-Up</option>
+        <option name="network-diagram-viz.network-diagram-viz.hierarchySortMethod">directed</option>
+        <option name="network-diagram-viz.network-diagram-viz.linkTextLocation">horizontal</option>
+        <option name="network-diagram-viz.network-diagram-viz.linkTextSize">small</option>
+        <option name="network-diagram-viz.network-diagram-viz.nodeTextSize">small</option>
+        <option name="network-diagram-viz.network-diagram-viz.smoothEdgeType">dyanmic</option>
+        <option name="network-diagram-viz.network-diagram-viz.smoothEdges">true</option>
+        <option name="network-diagram-viz.network-diagram-viz.tokenNode">nd_node_token</option>
+        <option name="network-diagram-viz.network-diagram-viz.tokenToNode">nd_to_node_token</option>
+        <option name="network-diagram-viz.network-diagram-viz.tokenToolTip">nd_tooltip_token</option>
+        <option name="network-diagram-viz.network-diagram-viz.tokenValue">nd_value_token</option>
         <option name="refresh.display">progressbar</option>
         <option name="trellis.enabled">0</option>
         <option name="trellis.scales.shared">1</option>
@@ -398,7 +534,7 @@
         <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
         <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
         <option name="charting.axisTitleX.visibility">visible</option>
-        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">collapsed</option>
         <option name="charting.axisTitleY2.visibility">visible</option>
         <option name="charting.axisX.abbreviation">none</option>
         <option name="charting.axisX.scale">linear</option>
@@ -448,8 +584,8 @@
       </input>
       <input type="text" token="NET_EVT_SEARCH_DEST" searchWhenChanged="true">
         <label>Searching Host Pattern : DEST</label>
-        <default>*</default>
-        <initialValue>*</initialValue>
+        <default>$INPUT_ASSET$</default>
+        <initialValue>$INPUT_ASSET$</initialValue>
       </input>
       <table>
         <search>

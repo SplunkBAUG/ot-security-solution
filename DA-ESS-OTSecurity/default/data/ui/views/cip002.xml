@@ -184,10 +184,36 @@
     </panel>
     <panel>
       <single>
-        <title>BCA/PCA Assets Not Checking In</title>
+        <title>EACMS Assets</title>
+        <search base="baseAssetSearch">
+          <query>|  search category!="unknown" cip_asset_type="EACM" |  stats count</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">81</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Hosts</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>PACS Assets</title>
+        <search base="baseAssetSearch">
+          <query>|  search category!="unknown" cip_asset_type="PACS" |  stats count</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="height">81</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Hosts</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>Assets Not Checking In</title>
         <search base="baseAssetSearch">
           <query>|  where minutesSinceLastReport="&gt; 24 Hours"
-|  search cip_asset_type="BCA" OR cip_asset_type="PCA"
+|  search cip_asset_type="BCA" OR cip_asset_type="PCA" OR cip_asset_type="EACMS" OR cip_asset_type="PACS"
 | stats count</query>
         </search>
         <option name="drilldown">none</option>
@@ -407,10 +433,23 @@
   </row>
   <row>
     <panel>
-      <title>BCA Asset List</title>
+      <title>Asset List</title>
+      <input type="multiselect" token="asset_type_tok" searchWhenChanged="true">
+        <label>CIP Asset Type</label>
+        <choice value="*">All</choice>
+        <choice value="BCA">BCA</choice>
+        <choice value="PCA">PCA</choice>
+        <choice value="EACM">EACMS</choice>
+        <choice value="PACS">PACS</choice>
+        <choice value="TCA">TCA</choice>
+        <initialValue>*</initialValue>
+        <valuePrefix>cip_asset_type="</valuePrefix>
+        <valueSuffix>"</valueSuffix>
+        <delimiter> OR </delimiter>
+      </input>
       <table>
         <search base="baseAssetDetails">
-          <query>| search cip_asset_type="BCA"
+          <query>| search $asset_type_tok$
 | table classification, nt_host, ip, mac, zone, bunit, site_id, asset_type, lastTime,minutesSinceLastReport 
 | convert ctime(lastTime) 
 | sort classification, nt_host 
@@ -420,82 +459,7 @@
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
-        <option name="rowNumbers">false</option>
-        <option name="totalsRow">false</option>
-        <option name="wrap">true</option>
-        <format type="color" field="BES Impact">
-          <colorPalette type="map">{"cip:high":#4FA484,"cip:medium":#62B3B2,"0-unknown":#DC4E41}</colorPalette>
-        </format>
-        <format type="number" field="minutesSinceLastReport">
-          <option name="precision">1</option>
-          <option name="unit">minutes</option>
-        </format>
-        <format type="number" field="Last Reported">
-          <option name="precision">0</option>
-          <option name="unit">minutes ago</option>
-        </format>
-        <format type="color" field="Last Reported">
-          <colorPalette type="map">{"&gt; 24 Hours":#DC4E41}</colorPalette>
-        </format>
-        <drilldown>
-          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/asset_investigator?form.asset=$row.Host$</link>
-        </drilldown>
-      </table>
-    </panel>
-  </row>
-  <row>
-    <panel>
-      <title>PCA Asset List</title>
-      <table>
-        <search base="baseAssetDetails">
-          <query>| search cip_asset_type="PCA"
-| table classification, nt_host, ip, mac, zone, bunit, site_id, asset_type, lastTime,minutesSinceLastReport 
-| convert ctime(lastTime) 
-| sort classification, nt_host 
-| rename classification as "BES Impact" lastTime as "Last Activity", minutesSinceLastReport as "Last Reported", nt_host as Host, ip as IP, mac as MAC, zone as Zone, bunit as "Business Unit", site_id as Facility, asset_type as Role, category as "Category"</query>
-        </search>
-        <option name="count">10</option>
-        <option name="dataOverlayMode">none</option>
-        <option name="drilldown">cell</option>
-        <option name="percentagesRow">false</option>
-        <option name="rowNumbers">false</option>
-        <option name="totalsRow">false</option>
-        <option name="wrap">true</option>
-        <format type="color" field="BES Impact">
-          <colorPalette type="map">{"cip:high":#4FA484,"cip:medium":#62B3B2,"0-unknown":#DC4E41}</colorPalette>
-        </format>
-        <format type="number" field="minutesSinceLastReport">
-          <option name="precision">1</option>
-          <option name="unit">minutes</option>
-        </format>
-        <format type="number" field="Last Reported">
-          <option name="precision">0</option>
-          <option name="unit">minutes ago</option>
-        </format>
-        <format type="color" field="Last Reported">
-          <colorPalette type="map">{"&gt; 24 Hours":#DC4E41}</colorPalette>
-        </format>
-        <drilldown>
-          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/asset_investigator?form.asset=$row.Host$</link>
-        </drilldown>
-      </table>
-    </panel>
-  </row>
-  <row>
-    <panel>
-      <title>TCA Asset List</title>
-      <table>
-        <search base="baseAssetDetails">
-          <query>| search cip_asset_type="TCA"
-| table nt_host, ip, mac, zone, bunit, site_id, asset_type, lastTime,minutesSinceLastReport 
-| convert ctime(lastTime) 
-| sort classification, nt_host 
-| rename lastTime as "Last Activity", minutesSinceLastReport as "Last Reported", nt_host as Host, ip as IP, mac as MAC, zone as Zone, bunit as "Business Unit", site_id as Facility, asset_type as Role, category as "Category"</query>
-        </search>
-        <option name="count">10</option>
-        <option name="dataOverlayMode">none</option>
-        <option name="drilldown">cell</option>
-        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>

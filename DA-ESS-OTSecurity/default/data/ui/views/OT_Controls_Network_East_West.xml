@@ -1,0 +1,315 @@
+<form theme="light" stylesheet="available_icons.css">
+  <label>OT Controls : Network North South Traffic Analysis</label>
+  <search id="inbound_outbound_stats">
+    <query>| pivot Network_Traffic Traffic_By_Action sum(bytes) AS bytes SPLITROW action SPLITROW dest SPLITROW dest_ip SPLITROW dest_zone SPLITROW dvc SPLITROW dvc_category SPLITROW src  SPLITROW src_ip  SPLITROW src_category SPLITROW _time AS _time PERIOD auto FILTER dvc_category is "ot*" FILTER action is "allowed"
+| lookup asset_lookup_by_str ip as src_ip OUTPUTNEW asset_type as src_asset_type, site_id as src_site_id, category as src_category, bunit as src_bunit, asset_system as src__asset_system
+| lookup asset_lookup_by_str ip as dest_ip OUTPUTNEW asset_type as dest_asset_type, site_id as dest_site_id, category as dest_category, bunit as dest_bunit, asset_system as dest__asset_system
+| lookup asset_lookup_by_str ip as dvc OUTPUTNEW asset_type as dvc_asset_type, site_id as dvc_site_id, bunit as dvc_bunit, asset_system as dvc_asset_system
+| where src_ip!=dest_ip
+| search (dvc_site_id=$site_tok|s$ OR dest_site_id=$site_tok|s$ OR src_site_id=$site_tok|s$) (dvc_bunit=$bunit_tok|s$ OR dest_bunit=$bunit_tok|s$ OR src_bunit=$bunit_tok|s$) (dvc_asset_system=$system_tok|s$ OR dest_asset_system=$system_tok|s$ OR src_asset_system=$system_tok|s$)
+| eval Direction=if(match(dest_category, ".*ot.*"), "inbound", "outbound")
+| stats values(dest_asset_type) as Target sum(bytes) as Bytes sparkline(sum(bytes)) as Trend by src,dest,Direction</query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <search id="incount_outbound_timeseries">
+    <query>
+      | pivot Network_Traffic Traffic_By_Action sum(bytes) AS bytes SPLITROW action SPLITROW dest SPLITROW dest_ip SPLITROW dest_zone SPLITROW dvc SPLITROW dvc_category SPLITROW src  SPLITROW src_ip  SPLITROW src_category SPLITROW _time AS _time PERIOD auto FILTER dvc_category is "ot*" FILTER action is "allowed"
+| lookup asset_lookup_by_str ip as src_ip OUTPUTNEW asset_type as src_asset_type, site_id as src_site_id, category as src_category, bunit as src_bunit, asset_system as src__asset_system
+| lookup asset_lookup_by_str ip as dest_ip OUTPUTNEW asset_type as dest_asset_type, site_id as dest_site_id, category as dest_category, bunit as dest_bunit, asset_system as dest__asset_system
+| lookup asset_lookup_by_str ip as dvc OUTPUTNEW asset_type as dvc_asset_type, site_id as dvc_site_id, bunit as dvc_bunit, asset_system as dvc_asset_system
+| where src_ip!=dest_ip
+| search (dvc_site_id=$site_tok|s$ OR dest_site_id=$site_tok|s$ OR src_site_id=$site_tok|s$) (dvc_bunit=$bunit_tok|s$ OR dest_bunit=$bunit_tok|s$ OR src_bunit=$bunit_tok|s$) (dvc_asset_system=$system_tok|s$ OR dest_asset_system=$system_tok|s$ OR src_asset_system=$system_tok|s$)
+| eval Direction=if(match(dest_category, ".*ot.*"), "inbound", "outbound")
+
+| eval path=src." =&gt; ".dest
+| stats sum(bytes) as Bytes by _time,path,Direction
+    </query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <fieldset submitButton="true">
+    <input type="dropdown" token="site_tok" searchWhenChanged="true">
+      <label>Facility/Site</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup site_id sortby site_id
+| fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="system_tok" searchWhenChanged="true">
+      <label>System</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>asset_system</fieldForLabel>
+      <fieldForValue>asset_system</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup asset_system sortby asset_system
+| fields asset_system</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="bunit_tok" searchWhenChanged="true">
+      <label>Business Unit</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>bunit</fieldForLabel>
+      <fieldForValue>bunit</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup bunit sortby bunit
+| fields bunit</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-60m@m</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html id="element1">
+        <h1>
+          <i class="fas fa-chart-line" style="font-size: 38px;color:#FF5733"/> North to South Traffic Monitor</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Inbound traffic to OT network</title>
+      <input type="link" token="INPUT_LOG_01" searchWhenChanged="true">
+        <label>View Range</label>
+        <choice value="linear">LINIER</choice>
+        <choice value="log">LOG</choice>
+        <default>log</default>
+        <initialValue>log</initialValue>
+      </input>
+      <html>
+      <style>
+p {text-align: center;}
+</style>
+      </html>
+      <chart>
+        <search base="incount_outbound_timeseries">
+          <query>| search Direction="inbound"
+|  sort -Bytes
+| timechart sum(Bytes) by path useother=F</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">$INPUT_LOG_01$</option>
+        <option name="charting.axisY.abbreviation">auto</option>
+        <option name="charting.axisY.scale">$INPUT_LOG_01$</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="height">251</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+      <table>
+        <search base="inbound_outbound_stats">
+          <query>| search Direction="inbound"
+| table src,dest,Target,Bytes,Trend
+| rename src as Source, dest as Destination
+| sort -Bytes</query>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="count">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+      </table>
+    </panel>
+    <panel>
+      <title>Outbound traffic from OT network</title>
+      <input type="link" token="INPUT_LOG_02" searchWhenChanged="true">
+        <label>View Range</label>
+        <choice value="linear">LINIER</choice>
+        <choice value="log">LOG</choice>
+        <default>log</default>
+        <initialValue>log</initialValue>
+      </input>
+      <html>
+
+       <!--p><img width="50%" src="/static/app/DA-ESS-OTSecurity/OT_sec_img_egress.png"/></p-->
+      </html>
+      <chart>
+        <search base="incount_outbound_timeseries">
+          <query>| search Direction="outbound"
+| sort -Bytes
+| timechart sum(Bytes) by path useother=F</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.abbreviation">none</option>
+        <option name="charting.axisX.scale">$INPUT_LOG_02$</option>
+        <option name="charting.axisY.abbreviation">auto</option>
+        <option name="charting.axisY.scale">$INPUT_LOG_02$</option>
+        <option name="charting.axisY2.abbreviation">none</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.mode">standard</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="height">251</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+      <table>
+        <search base="inbound_outbound_stats">
+          <query>| search Direction="outbound"
+| table src,dest,Target,Bytes,Trend
+| rename src as Source, dest as Destination
+|  sort -Bytes</query>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="count">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html id="element2">
+        <h1>
+          <i class="fas fa-chart-line" style="font-size: 38px;color:#FF5733"/> Network Session Analysis</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Detailed Session Records IN/OUT of OT Network</title>
+      <input type="text" token="NET_EVT_SEARCH_SRC" searchWhenChanged="true">
+        <label>Searching Host Pattern : SRC</label>
+        <default>*</default>
+        <initialValue>*</initialValue>
+        <prefix>src="</prefix>
+        <suffix>"</suffix>
+      </input>
+      <input type="text" token="NET_EVT_SEARCH_DEST" searchWhenChanged="true">
+        <label>Searching Host Pattern : DEST</label>
+        <default>*</default>
+        <initialValue>*</initialValue>
+        <prefix>dest="</prefix>
+        <suffix>"</suffix>
+      </input>
+      <table>
+        <search>
+          <query>tag=network ( src_asset_type=* OR dest_asset_type=* ) ( NOT src=1.1.1.1)  $NET_EVT_SEARCH_SRC$ $NET_EVT_SEARCH_DEST$
+| stats count, last(src_asset_type) as src_asset_type, last(dest_asset_type) as dest_asset_type, values(dest_asset_status) as asset_status, values(dest_priority) as priority, sum(bytes) as bytes, sparkline(count) as trend by src dest
+| head 20 
+| rex field=src "(?&lt;net&gt;\d+\.\d+\.\d+)"
+| table src, src_asset_type, dest, dest_asset_type asset_status priority count bytes trend
+| sort - count</query>
+          <earliest>-60m@m</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="count">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="src_asset_type">
+          <colorPalette type="map">{"plc":#53A051,"historian":#006D9C,"eng workstation":#006D9C,"scada":#006D9C,"hmi":#006D9C,"firewall":#DC4E41,"switch":#DC4E41,"rtu":#53A051,"router":#DC4E41,"remote access":#DC4E41,"ids":#DC4E41,"nework-sw":#DC4E41,"nework-rtr":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="priority">
+          <colorPalette type="map">{"low":#53A051,"medium":#F8BE34,"high":#F1813F,"critical":#DC4E41}</colorPalette>
+        </format>
+        <format type="color" field="asset_type">
+          <colorPalette type="sharedList"></colorPalette>
+          <scale type="sharedCategory"></scale>
+        </format>
+        <format type="color" field="asset_status">
+          <colorPalette type="map">{"operational":#53A051,"standby":#F8BE34}</colorPalette>
+        </format>
+        <format type="color" field="bytes">
+          <colorPalette type="minMidMax" maxColor="#53A051" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

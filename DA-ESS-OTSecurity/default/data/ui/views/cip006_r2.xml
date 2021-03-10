@@ -1,0 +1,158 @@
+<form theme="light" stylesheet="DA-ESS-OTSecurity:available_icons.css">
+  <label>CIP-006 R2: Visitor Control Program</label>
+  <description>Each Responsible Entity shall implement one or more documented visitor control program(s) that include each of the applicable requirement parts in CIP-006-6 Table R2 – Visitor Control Program.</description>
+  <search id="getCertificationState">
+    <query>| inputlookup cip_pra_completion_records
+| eval certification_date=strptime(completion_date, "%m/%d/%Y")
+| eval years_since_completion=(now() - certification_date)/60/60/24/365
+| eval is_overdue=if(years_since_completion &gt;= 7, "Out of Compliance", if(years_since_completion &gt;= 6, "Needs PRA", "Completed"))
+| eval urgency=CASE(
+is_overdue="Out of Compliance", 0,
+is_overdue="Needs PRA", 1,
+1=1, 10)
+| sort urgency
+</query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>site="*</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| `get_esp_zone(zone)`
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-7d@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="link" token="showRegulation_tok" searchWhenChanged="true">
+      <label>CIP Requirements</label>
+      <choice value="true">Show</choice>
+      <choice value="false">Hide</choice>
+      <default>false</default>
+      <initialValue>false</initialValue>
+      <change>
+        <condition value="true">
+          <set token="showRegulation_tok">true</set>
+        </condition>
+        <condition value="false">
+          <unset token="showRegulation_tok"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-user" style="font-size: 34px;color:#FF5733"/>  Visitor Access</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <p>
+          <h1>R2.2:  Require manual or automated logging of visitor entry into and exit from the Physical Security Perimeter that includes date and time of the initial entry and last exit, the visitor’s name, and the name of an individual point of contact responsible for the visitor.</h1>
+        </p>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Visitor Activity</title>
+      <table>
+        <search>
+          <query>`get_visitoraccess_records` $espZone_tok$
+| transaction badge_code,location,site startswith=eval(match(access_type, ".*ingress.*")) endswith=eval(match(access_type, ".*egress.*"))
+| eval badge_in=_time, badge_out=_time+duration
+| convert ctime(badge_in) ctime(badge_out) ctime(day)
+| eval badge_out=if(duration=0, "on-site", badge_out), duration=duration/60/60
+| search identity=*
+| table site,badge_code,identity,location,badge_in,badge_out,duration
+| sort -badge_out
+| rename site as "ESP Zone", badge_code as "Badge ID", identity as "Badge Assigned To", location as Location, badge_in as "Badge In", badge_out as "Badge Out"</query>
+          <earliest>0</earliest>
+          <latest></latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="number" field="duration">
+          <option name="precision">1</option>
+          <option name="unit">Hours</option>
+        </format>
+      </table>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <p>
+          <h1>R2.3:  Retain visitor logs for at least ninety calendar days.</h1>
+        </p>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Age of Visitor Logs</title>
+      <table>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv
+
+| `get_esp_zone(zone)`
+| dedup zone
+| rename zone as site
+|  join type=left site
+    [ search `get_visitoraccess_records`
+| stats earliest(_time) as earliest_access by site
+ | eval age_of_logs_in_days=(now() - earliest_access)/60/60
+ 
+ | fields site, earliest_access, age_of_logs_in_days] 
+ |  table site, earliest_access, age_of_logs_in_days
+ | convert ctime(earliest_access) 
+ | fillnull age_of_logs_in_days value=-1
+ | eval age_of_logs_in_days=if(age_of_logs_in_days=-1, "0", age_of_logs_in_days)
+ | search $espZone_tok$
+ | rename site as "ESP Zone", age_of_logs_in_days as "Log Age", earliest_access as "Oldest Record"</query>
+          <earliest>-90d@d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="number" field="Log Age">
+          <option name="precision">1</option>
+          <option name="unit">days</option>
+        </format>
+        <format type="color" field="Log Age">
+          <colorPalette type="list">[#DC4E41,#F8BE34,#F8BE34,#53A051]</colorPalette>
+          <scale type="threshold">5,30,70</scale>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

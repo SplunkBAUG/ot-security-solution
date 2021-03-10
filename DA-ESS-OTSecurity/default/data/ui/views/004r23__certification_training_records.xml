@@ -1,0 +1,72 @@
+<form theme="light">
+  <label>004-R2.3 - Certification Training Records</label>
+  <description>Require completion of the training specified in Part 2.1 at least once every 15 calendar months.</description>
+  <fieldset submitButton="false">
+    <input type="dropdown" token="individual_tok" searchWhenChanged="true">
+      <label>User</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <fieldForLabel>members</fieldForLabel>
+      <fieldForValue>members</fieldForValue>
+      <search>
+        <query>| inputlookup cip_distribution_lists
+| eval members=split(members, "|")
+| mvexpand members
+|  dedup members sortby members
+| fields members</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="group_tok" searchWhenChanged="true">
+      <label>Training Group</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <fieldForLabel>distribution_list_name</fieldForLabel>
+      <fieldForValue>distribution_list_name</fieldForValue>
+      <search>
+        <query>| inputlookup cip_distribution_lists
+| sort distribution_list_name
+| fields distribution_list_name</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-90d@d</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Remote Access by Users with Expired Certifications</title>
+      <table>
+        <search>
+          <query>| `get_cip_training_and_members` 
+| search State="REQUIRED" members=$individual_tok|s$ distribution_list_name=$group_tok|s$ 
+| fields members, title 
+| join type=left members,title 
+    [| inputlookup cip_training_records.csv 
+    | eval members=user 
+    | fields members,score,completed_date,title,next_certification_date ] 
+| eval next_three_months=relative_time(now(), "+3mon@day"), next_certification_epoch=strptime(next_certification_date, "%m/%d/%Y"), today_now=now()
+| eval cert_state=if(next_certification_epoch &lt;= next_three_months, if(today_now &gt;= next_certification_epoch, "1 - Expired", "2 - Approaching Renewal"), "3 - Good") 
+| table members,title,next_certification_date,cert_state
+| sort cert_state,-next_certification_date
+| rename members as User, title as Title, completed_date as "Completed Date", score as Score, next_certification_date as "Renewal Date", cert_state as "State"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="count">100</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="State">
+          <colorPalette type="map">{"1 - Expired":#DC4E41,"2 - Approaching Renewal":#F8BE34,"3 - Good":#53A051}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

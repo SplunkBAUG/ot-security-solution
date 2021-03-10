@@ -1,0 +1,85 @@
+<form theme="light" stylesheet="DA-ESS-OTSecurity:available_icons.css">
+  <label>006-R2.3 - Visitor Log Retention</label>
+  <description>Retain visitor logs for at least ninety calendar days.</description>
+  <search id="getCertificationState">
+    <query>| inputlookup cip_pra_completion_records
+| eval certification_date=strptime(completion_date, "%m/%d/%Y")
+| eval years_since_completion=(now() - certification_date)/60/60/24/365
+| eval is_overdue=if(years_since_completion &gt;= 7, "Out of Compliance", if(years_since_completion &gt;= 6, "Needs PRA", "Completed"))
+| eval urgency=CASE(
+is_overdue="Out of Compliance", 0,
+is_overdue="Needs PRA", 1,
+1=1, 10)
+| sort urgency
+</query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>site="*</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| `get_esp_zone(zone)`
+| `get_cip_asset_type(classification, cip_asset_type)`
+| search `get_high_medium_cip_assets(classification)` cip_asset_type="EACMS" OR cip_asset_type="PCA"
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-90d@d</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Age of Visitor Logs</title>
+      <table>
+        <search>
+          <query>| inputlookup cip_asset_lookup.csv
+
+| `get_esp_zone(zone)`
+| dedup zone
+| rename zone as site
+|  join type=left site
+    [ search `get_visitoraccess_records`
+| stats earliest(_time) as earliest_access by site
+ | eval age_of_logs_in_days=(now() - earliest_access)/60/60
+ 
+ | fields site, earliest_access, age_of_logs_in_days] 
+ |  table site, earliest_access, age_of_logs_in_days
+ | convert ctime(earliest_access) 
+ | fillnull age_of_logs_in_days value=-1
+ | eval age_of_logs_in_days=if(age_of_logs_in_days=-1, "0", age_of_logs_in_days)
+ | search $espZone_tok$
+ | rename site as "ESP Zone", age_of_logs_in_days as "Log Age", earliest_access as "Oldest Record"</query>
+          <earliest>-90d@d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="number" field="Log Age">
+          <option name="precision">1</option>
+          <option name="unit">days</option>
+        </format>
+        <format type="color" field="Log Age">
+          <colorPalette type="list">[#DC4E41,#F8BE34,#F8BE34,#53A051]</colorPalette>
+          <scale type="threshold">5,30,70</scale>
+        </format>
+      </table>
+    </panel>
+  </row>
+</form>

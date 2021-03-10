@@ -1,0 +1,52 @@
+<form theme="light" stylesheet="DA-ESS-OTSecurity:available_icons.css">
+  <label>008-R1.1 - Incident Response Plan Review</label>
+  <description>One or more processes to identify, classify, and respond to Cyber Security Incidents.</description>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>zone="*</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| `get_esp_zone(zone)`
+| `get_cip_asset_type(classification, cip_asset_type)`
+| search `get_high_medium_cip_assets(classification)` cip_asset_type="EACMS" OR cip_asset_type="PCA"
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Incident Review Documents (Last Year)</title>
+      <table>
+        <search>
+          <query>| inputlookup cip_incident_manangement_docs 
+| addinfo 
+| eval zone=ESP, last_change=strptime(modified_date, "%m/%d/%Y") 
+| join type=left zone 
+    [| inputlookup cip_asset_lookup 
+    | `get_esp_zone(zone)` 
+    | dedup zone 
+    | fields zone ] 
+| where last_change &gt;= info_min_time 
+| search $espZone_tok$ 
+| sort -last_change,zone 
+| table ESP,title,version,action,user,created_date,modified_date,link 
+| rename title as Title, version as Version, action as "Change Type", user as User, created_date as "Created Date", modified_date as "Modified Date", link as Link</query>
+          <earliest>-365d@d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

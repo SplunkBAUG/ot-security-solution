@@ -1,0 +1,108 @@
+<form theme="light" stylesheet="DA-ESS-OTSecurity:available_icons.css">
+  <label>006-R1.4 - Unauthorized Physical Security</label>
+  <description>Monitor for unauthorized access through a physical access point into a Physical Security Perimeter.</description>
+  <search id="getCertificationState">
+    <query>| inputlookup cip_pra_completion_records
+| eval certification_date=strptime(completion_date, "%m/%d/%Y")
+| eval years_since_completion=(now() - certification_date)/60/60/24/365
+| eval is_overdue=if(years_since_completion &gt;= 7, "Out of Compliance", if(years_since_completion &gt;= 6, "Needs PRA", "Completed"))
+| eval urgency=CASE(
+is_overdue="Out of Compliance", 0,
+is_overdue="Needs PRA", 1,
+1=1, 10)
+| sort urgency
+</query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>zone="*</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| `get_esp_zone(zone)`
+| `get_cip_asset_type(classification, cip_asset_type)`
+| search `get_high_medium_cip_assets(classification)` cip_asset_type="EACMS" OR cip_asset_type="PCA"
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-7d@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Failed Access Attempts</title>
+      <table>
+        <search>
+          <query>`get_physicalaccess_records` 
+|  `get_physical_site_classification(site,location,asset_classification)`
+| search `get_high_medium_cip_assets(asset_classification)`
+| eval zone=site
+| search result=failure $espZone_tok$
+| eval Name=user_first." ".user_last
+| bin _time span=1d
+| stats count by  _time,user,Name,site,location,user_priority,user_bunit,access_type
+| rename user as User,site as Facility,location as "Badge Location",user_priority as Priority, user_bunit as "Business Unit", access_type as Access, location as Location
+| sort -count
+| rename count as "# Failures"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">100</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="# Failures">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Last Badge Access by Personnel</title>
+      <table>
+        <search>
+          <query>`get_physicalaccess_records` result=success access_type=* 
+| `get_physical_site_classification(site,location,asset_classification)` 
+| search `get_high_medium_cip_assets(asset_classification)` 
+| eval zone=site 
+| eval day=_time 
+| bin day span=1d 
+| search $espZone_tok$ 
+| streamstats count(eval(access_type="ingress")) AS TransactionID BY user,location,site,day 
+| stats range(_time) AS duration list(access_type) AS VALUES min(_time) AS badge_in max(_time) as badge_out BY TransactionID user,location,site,day 
+| convert ctime(badge_in) ctime(badge_out) ctime(day) 
+| eval badge_out=if(duration=0, "on-site", badge_out) 
+| table day,site,user,location,badge_in,badge_out 
+| rename site as "ESP Zone", day as "Date", user as User, location as Location, badge_in as "Badge In", badge_out as "Badge Out"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

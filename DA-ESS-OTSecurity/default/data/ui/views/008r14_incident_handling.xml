@@ -1,0 +1,115 @@
+<form theme="light" stylesheet="DA-ESS-OTSecurity:available_icons.css">
+  <label>008-R1.4 - Incident Handling</label>
+  <description>Incident handling procedures for Cyber Security Incidents.</description>
+  <fieldset submitButton="false">
+    <input type="multiselect" token="espZone_tok" searchWhenChanged="true">
+      <label>ESP Zone</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>zone="*</valuePrefix>
+      <valueSuffix>*"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>zone</fieldForLabel>
+      <fieldForValue>zone</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+| `get_esp_zone(zone)`
+| `get_cip_asset_type(classification, cip_asset_type)`
+| search `get_high_medium_cip_assets(classification)` cip_asset_type="EACMS" OR cip_asset_type="PCA"
+| dedup zone sortby zone
+| fields zone</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="site_id_tok" searchWhenChanged="true">
+      <label>Facility</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>site_id="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>| inputlookup cip_asset_lookup.csv
+|  search `get_high_medium_cip_assets(classification)`
+| dedup site_id sortby site_id
+|  fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="status_tok">
+      <label>Status</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <valuePrefix>status_description="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR </delimiter>
+      <fieldForLabel>status_description</fieldForLabel>
+      <fieldForValue>status_description</fieldForValue>
+      <search>
+        <query>`notable`
+| dedup status_description sortby status_description</query>
+        <earliest>$time_tok.earliest$</earliest>
+        <latest>$time_tok.latest$</latest>
+      </search>
+    </input>
+    <input type="multiselect" token="owner_tok" searchWhenChanged="true">
+      <label>Owner</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <fieldForLabel>owner</fieldForLabel>
+      <fieldForValue>owner</fieldForValue>
+      <search>
+        <query>`notable`
+| dedup owner sortby owner</query>
+        <earliest>$time_tok.earliest$</earliest>
+        <latest>$time_tok.latest$</latest>
+      </search>
+      <valuePrefix>owner="</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+      <delimiter> OR  </delimiter>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Notable Events</title>
+      <table>
+        <search>
+          <query>`notable`
+| fillnull dvc_category, src_category, dest_category,dest,src,svc value="" 
+| search (dvc_category="nerc*" OR src_category="nerc*" OR dest_category="nerc*")
+| `get_notable_asset_details`
+| mvexpand zone
+| `get_esp_zone(zone)`
+| search  `get_high_medium_cip_assets(dest_classification)` OR `get_high_medium_cip_assets(dvc_classification)` OR `get_high_medium_cip_assets(src_classification)`
+| search $espZone_tok$ $site_id_tok$ $status_tok$ $owner_tok$
+| strcat host " | " ip asset
+| table _time, search_name,asset,asset_type,site_id,zone,priority,owner,status_description
+| sort -_time,priority
+| rename search_name as Rule asset_type as "Asset Type", totalEvents as "Count of Incidents", zone as "Asset Zone", priority as Priority, site_id as Facility, asset as "Impacted Asset", owner as Owner, status_description as Status</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="count">25</option>
+        <option name="drilldown">cell</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="Priority">
+          <colorPalette type="map">{"critical":#DC4E41,"high":#F1813F,"medium":#F8BE34,"low":#53A051}</colorPalette>
+        </format>
+        <drilldown>
+          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/incident_review?earliest=$earliest$&amp;latest=$latest$&amp;source=$row.Rule$</link>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+</form>

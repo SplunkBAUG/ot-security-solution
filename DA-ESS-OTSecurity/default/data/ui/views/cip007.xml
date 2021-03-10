@@ -138,7 +138,7 @@
           <query>`get_removable_media_indexes`
 | lookup cip_asset_lookup.csv nt_host as ComputerName OUTPUTNEW site_id as dest_site_id,zone as dest_zone, classification
 | fillnull dest_zone value="esp:unknown"
-| fillnull classification value="cip:unknown"
+| fillnull classification value="unknown"
 | fillnull dest_site_id value="unknown"
 | search  classification="*cip:*" $espZone_tok$ $esp_facility_tok$
 | mvexpand dest_zone
@@ -176,10 +176,9 @@
           <query>`get_removable_media_indexes`
 | lookup cip_asset_lookup.csv nt_host as ComputerName OUTPUTNEW site_id as dest_site_id,zone as dest_zone, classification, category
 | fillnull dest_zone value="esp:unknown"
-| fillnull classification value="cip:unknown"
+| fillnull classification value="unknown"
 | fillnull dest_site_id value="unknown"
 | search  classification="*cip:*" $espZone_tok$ $esp_facility_tok$
-| `get_esp_zone(dest_zone)`
 | stats count by ComputerName
 | sort -count
 | head 10</query>

@@ -1,6 +1,59 @@
 <form theme="light" stylesheet="available_icons.css">&gt;<label>OT Security Posture</label>
   <!-- Key indicators -->
-  <fieldset submitButton="false"></fieldset>
+  <fieldset submitButton="false">
+    <input type="dropdown" token="site_tok">
+      <label>Facility/Site</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>site_id</fieldForLabel>
+      <fieldForValue>site_id</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup site_id sortby site_id
+| fields site_id</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="system_tok" searchWhenChanged="true">
+      <label>System</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>asset_system</fieldForLabel>
+      <fieldForValue>asset_system</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup asset_system sortby asset_system
+| fields asset_system</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="bunit_tok">
+      <label>Business Unit</label>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <fieldForLabel>bunit</fieldForLabel>
+      <fieldForValue>bunit</fieldForValue>
+      <search>
+        <query>|  inputlookup asset_lookup_by_str
+| dedup bunit sortby bunit
+| fields bunit</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
   <row>
     <panel>
       <html id="element1">
@@ -43,13 +96,15 @@
       </html>
       <chart>
         <search>
-          <query>index=notable ( dvc_asset_id="*" OR dest_asset_id="*" OR src_asset_id="*" ) 
+          <query>index=notable 
+| fillnull dvc_category, src_category, dest_category, dvc_site_id, dest_site_id, src_site_id, dvc_bunit, dest_bunit, src_bunit, dvc_asset_system, dest_asset_system, src_asset_system value="" 
+| search (dvc_category="ot*" OR src_category="ot*" OR dest_category="ot*") (dvc_site_id=$site_tok|s$ OR dest_site_id=$site_tok|s$ OR src_site_id=$site_tok|s$) (dvc_bunit=$bunit_tok|s$ OR dest_bunit=$bunit_tok|s$ OR src_bunit=$bunit_tok|s$) (dvc_asset_system=$system_tok|s$ OR dest_asset_system=$system_tok|s$ OR src_asset_system=$system_tok|s$)
 | strcat dvc src dest assets 
 | strcat dvc_asset_type src_asset_type dest_asset_type asset_type 
-| strcat assets " : " asset_type as combo
+| strcat assets " : " asset_type as combo 
 | timechart count by combo</query>
-          <earliest>-24h@h</earliest>
-          <latest>now</latest>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
           <sampleRatio>1</sampleRatio>
         </search>
         <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
@@ -94,13 +149,15 @@
       </html>
       <chart>
         <search>
-          <query>index=notable ( dvc_asset_id="*" OR dest_asset_id="*" OR src_asset_id="*" ) 
+          <query>index=notable 
+| fillnull dvc_category, src_category, dest_category, dvc_site_id, dest_site_id, src_site_id, dvc_bunit, dest_bunit, src_bunit, dvc_asset_system, dest_asset_system, src_asset_system value="" 
+| search (dvc_category="ot*" OR src_category="ot*" OR dest_category="ot*") (dvc_site_id=$site_tok|s$ OR dest_site_id=$site_tok|s$ OR src_site_id=$site_tok|s$) (dvc_bunit=$bunit_tok|s$ OR dest_bunit=$bunit_tok|s$ OR src_bunit=$bunit_tok|s$) (dvc_asset_system=$system_tok|s$ OR dest_asset_system=$system_tok|s$ OR src_asset_system=$system_tok|s$)
 | strcat dvc src dest assets 
 | strcat dvc_asset_type src_asset_type dest_asset_type asset_type 
 | strcat assets " : " asset_type as combo 
 | stats count by combo</query>
-          <earliest>-24h@h</earliest>
-          <latest>now</latest>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
           <sampleRatio>1</sampleRatio>
         </search>
         <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
@@ -121,7 +178,7 @@
         <option name="charting.chart.bubbleSizeBy">area</option>
         <option name="charting.chart.nullValueMode">gaps</option>
         <option name="charting.chart.showDataLabels">none</option>
-        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.001</option>
         <option name="charting.chart.stackMode">default</option>
         <option name="charting.chart.style">shiny</option>
         <option name="charting.drilldown">none</option>
@@ -149,18 +206,40 @@
       </html>
       <table id="element4">
         <search>
-          <query>index=notable ( dvc_asset_id="*" OR dest_asset_id="*" OR src_asset_id="*" ) 
-| strcat dvc src dest assets 
-| strcat dvc_asset_type src_asset_type dest_asset_type asset_type 
-| strcat assets " : " asset_type as combo 
-| stats values(asset_type) as asset_type, values(combo) as match_asset, dc(combo) as asset_count, count, sparkline(sum(count),1d) as Trend by search_name 
-| rename search_name as "Active Notables", asset_type as "Asset Types", match_asset as "Impacted Assets", asset_count as "Impacted Asset Count", count as "Count of Incidents" 
-| sort - "Count of Incidents"</query>
-          <earliest>-6h</earliest>
-          <latest>@h</latest>
+          <query>index=notable 
+| fillnull dvc_category, src_category, dest_category, dvc_site_id, dest_site_id, src_site_id, dvc_bunit, dest_bunit, src_bunit, dvc_asset_system, dest_asset_system, src_asset_system value="" 
+| search (dvc_category="ot*" OR src_category="ot*" OR dest_category="ot*") (dvc_site_id=$site_tok|s$ OR dest_site_id=$site_tok|s$ OR src_site_id=$site_tok|s$) (dvc_bunit=$bunit_tok|s$ OR dest_bunit=$bunit_tok|s$ OR src_bunit=$bunit_tok|s$) (dvc_asset_system=$system_tok|s$ OR dest_asset_system=$system_tok|s$ OR src_asset_system=$system_tok|s$) 
+| fillnull dvc,src,dest value="" 
+| eval dvc=if(dvc=dest, "", dvc),dvc=if(dvc=src, "", dvc) 
+| eval assets=if(isnull(dvc) OR dvc="", "", "(" + dvc + ") ") + if(isnull(src), "", src) + if(isnull(dest), "", if(isnull(src), dest, "--&gt;" + dest)) 
+| eval asset_type=if(isnull(src_asset_type), "", src_asset_type) + if(isnull(src_asset_type), "", if(isnull(dest_asset_type), "", " -&gt; ")) + if(isnull(dest_asset_type), "", dest_asset_type) 
+| strcat dvc_zone src_zone dest_zone asset_zone 
+| strcat dvc_location src_location dest_location asset_location 
+| eval asset_priority=if(isnull(src_priority), "", src_priority) + if (isnull(src_priority), "", if(isnull(dest_priority), "", " -&gt; ")) + if(isnull(dest_priority), "", dest_priority) 
+| eval description=if(isnull(alert_message), search_name, alert_message)
+| eval description=replace(description, " - Rule", ""), description=replace(description, " \(MITRE ICS\)", "")
+| rex field=asset_zone "level[_]*(?&lt;asset_zone&gt;\d+)" 
+| rex field=asset_zone mode=sed "s/level[_]*/level /g" 
+| fillnull src_site_id, dest_site_id value="" 
+| eval dvc_site_id=if(src_site_id!="", src_site_id, if(dest_site_id!="", dest_site_id, dvc_site_id)) 
+| lookup asset_lookup_by_str asset as assets OUTPUTNEW site_id as dvc_site_id, dns, ip, nt_host 
+| lookup asset_lookup_by_str asset as assets OUTPUTNEW site_id as nt_host_site_id, dns, ip, nt_host 
+| lookup asset_lookup_by_str asset as assets OUTPUTNEW site_id as ip_site_id, dns, ip, nt_host 
+| eval site_id=if(isnull(dvc_site_id), if(isnull(nt_host_site_id), if(isnull(ip_site_id), "Unknown", ip_site_id), nt_host_site_id), dvc_site_id) 
+| eval combo=assets 
+| mvexpand match_asset 
+| mvexpand asset_type 
+| mvexpand asset_priority 
+| fillnull search_name, dvc,src, dest, asset_type, site_id, asset_priority, asset_zone value="" 
+| stats max(_time) as latestTime count as "# Alerts" sparkline as Trend by search_name,dvc src dest, asset_type, site_id, asset_priority, asset_zone, description
+| sort -latestTime 
+| convert ctime(latestTime) 
+| rename asset_type as "Asset Types", asset_count as "Impacted Asset Count", asset_zone as "Asset Zone", asset_priority as "Priority", site_id as "Facility", latest_time as "Last Count", latestTime as "Last Notable", dvc as "Device", src as Source, dest as Destination, description as Notable</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
           <sampleRatio>1</sampleRatio>
         </search>
-        <option name="count">5</option>
+        <option name="count">7</option>
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">row</option>
         <option name="percentagesRow">false</option>
@@ -184,8 +263,30 @@
           <option name="precision">0</option>
           <option name="unit">Assets</option>
         </format>
+        <format type="color" field="Asset Zone">
+          <colorPalette type="minMidMax" maxColor="#FFFFFF" minColor="#006D9C"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="number" field="asset_zone">
+          <option name="precision">0</option>
+          <option name="unit">Level</option>
+          <option name="unitPosition">before</option>
+        </format>
+        <format type="color" field="Impacted Asset Count">
+          <colorPalette type="minMidMax" maxColor="#DC4E41" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+        <format type="color" field="Priority">
+          <colorPalette type="map">{"critical":#DC4E41,"high":#F1813F,"medium":#F8BE34,"low":#B6C75A}</colorPalette>
+        </format>
+        <format type="number" field="Asset Zone">
+          <option name="precision">0</option>
+          <option name="unit">Level</option>
+          <option name="unitPosition">before</option>
+        </format>
+        <fields>["Last Notable","Notable","Device","Source","Destination","Asset Types","Facility","Priority","Asset Zone","# Alerts","Trend"]</fields>
         <drilldown>
-          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/incident_review?form.rule_name=$row.rule_name$&amp;earliest=$earliest$&amp;latest=$latest$&amp;search=ot</link>
+          <link target="_blank">/app/SplunkEnterpriseSecuritySuite/incident_review?earliest=$earliest$&amp;latest=$latest$&amp;source=$row.search_name$&amp;search=$row.Notable$</link>
         </drilldown>
       </table>
     </panel>
@@ -222,9 +323,12 @@
           <query>index=risk 
 | bin _time span=1d
 | stats sum(risk_score) as risk_score_curr by _time, risk_object, risk_object_type
-| lookup ot_asset_lookup ip as risk_object 
-| lookup cip_asset_lookup ip as risk_object 
-| search asset_type=*
+| lookup asset_lookup_by_str dns as risk_object OUTPUTNEW asset_type as dns_asset_type, asset_system, asset_status, site_id, bunit
+| lookup asset_lookup_by_str nt_host as risk_object OUTPUTNEW asset_type as host_asset_type, asset_system, asset_status, bunit
+| lookup asset_lookup_by_str ip as risk_object OUTPUTNEW asset_type as ip_asset_type, asset_system, asset_status, bunit
+| eval asset_type=if(isnull(dns_asset_type), if(isnull(host_asset_type), ip_asset_type, host_asset_type), dns_asset_type)
+| fillnull site_id, bunit, asset_system, dest_asset_system value="" 
+| search asset_type=* site_id=$site_tok|s$ bunit=$bunit_tok|s$ asset_system=$system_tok|s$
 | timechart sum(risk_score_curr)</query>
           <earliest>-7d@h</earliest>
           <latest>now</latest>
@@ -259,6 +363,7 @@
         <option name="charting.legend.placement">bottom</option>
         <option name="charting.lineWidth">2</option>
         <option name="height">316</option>
+        <option name="refresh.display">progressbar</option>
         <option name="trellis.enabled">0</option>
         <option name="trellis.scales.shared">1</option>
         <option name="trellis.size">medium</option>
@@ -277,16 +382,22 @@
           <query>index=risk earliest=-2d@d latest=+0d 
 | eval _time=strftime(_time,"%Y-%m-%d")
 | stats sum(risk_score) as risk_score_curr by _time, risk_object, risk_object_type
-| lookup ot_asset_lookup ip as risk_object 
-| lookup cip_asset_lookup ip as risk_object 
-| search asset_type=*
+| lookup asset_lookup_by_str dns as risk_object OUTPUTNEW asset_type as dns_asset_type, asset_system, asset_status, site_id, bunit
+| lookup asset_lookup_by_str nt_host as risk_object OUTPUTNEW asset_type as host_asset_type, asset_system, asset_status, bunit
+| lookup asset_lookup_by_str ip as risk_object OUTPUTNEW asset_type as ip_asset_type, asset_system, asset_status, bunit
+| eval asset_type=if(isnull(dns_asset_type), if(isnull(host_asset_type), ip_asset_type, host_asset_type), dns_asset_type)
+| fillnull site_id, bunit, asset_system, dest_asset_system value="" 
+| search asset_type=* site_id=$site_tok|s$ bunit=$bunit_tok|s$ asset_system=$system_tok|s$
 | appendcols 
     [ search index=risk earliest=-4d@d latest=-2d@d 
 | eval _time=strftime(_time,"%Y-%m-%d")
 | stats sum(risk_score) as risk_score_prev by _time, risk_object, risk_object_type
-| lookup ot_asset_lookup ip as risk_object 
-| lookup cip_asset_lookup ip as risk_object 
-| search asset_type=* ]
+| lookup asset_lookup_by_str dns as risk_object OUTPUTNEW asset_type as dns_asset_type, asset_system, asset_status, site_id, bunit
+| lookup asset_lookup_by_str nt_host as risk_object OUTPUTNEW asset_type as host_asset_type, asset_system, asset_status, bunit
+| lookup asset_lookup_by_str ip as risk_object OUTPUTNEW asset_type as ip_asset_type, asset_system, asset_status, bunit
+| eval asset_type=if(isnull(dns_asset_type), if(isnull(host_asset_type), ip_asset_type, host_asset_type), dns_asset_type)
+| fillnull site_id, bunit, asset_system, dest_asset_system value="" 
+| search asset_type=* site_id=$site_tok|s$ bunit=$bunit_tok|s$ asset_system=$system_tok|s$ ]
 | mvexpand asset_status
 | mvexpand asset_system
 | mvexpand asset_type
@@ -297,14 +408,15 @@
 | table  "Asset",  "Asset Type",  "Risk Score - Now",  "Risk Score - Prev",  "Risk Delta",  "Asset Status",  "Asset System"
 | dedup "Asset"
 | sort - "Risk Score - Now"</query>
-          <earliest>0</earliest>
-          <latest></latest>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
           <sampleRatio>1</sampleRatio>
         </search>
         <option name="count">7</option>
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">true</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>
@@ -361,7 +473,7 @@
     <panel id="panel05">
       <html>
         <h2>
-          <i class="fas fa-angle-double-right" style="font-size: 24px;color:#009933;"/> OT Network Activity</h2>
+          <i class="fas fa-angle-double-right" style="font-size: 24px;color:#009933;"/> OT Network Activity by Day</h2>
       </html>
       <chart>
         <search>
@@ -402,6 +514,7 @@
         <option name="charting.legend.placement">right</option>
         <option name="charting.lineWidth">2</option>
         <option name="height">338</option>
+        <option name="refresh.display">progressbar</option>
         <option name="trellis.enabled">0</option>
         <option name="trellis.scales.shared">1</option>
         <option name="trellis.size">medium</option>
@@ -410,10 +523,10 @@
     <panel id="panel06">
       <input type="link" token="SUBTRACT_FIELDS" searchWhenChanged="true">
         <label>Show Detailed Fields :</label>
-        <choice value="table dvc, dvc_asset_type, tot_bytes_change_pct, tot_session_change_pct, tot_duration_change_pct,  dvc_asset_status, dvc_asset_system">Brief</choice>
-        <choice value="table dvc, dvc_asset_type, tot_bytes_change_pct, tot_session_change_pct, tot_duration_change_pct,  tot_mb_avg, tot_session_avg, tot_duration_avg, dvc_asset_status, dvc_asset_system">Detailed</choice>
-        <default>table dvc, dvc_asset_type, tot_bytes_change_pct, tot_session_change_pct, tot_duration_change_pct,  dvc_asset_status, dvc_asset_system</default>
-        <initialValue>table dvc, dvc_asset_type, tot_bytes_change_pct, tot_session_change_pct, tot_duration_change_pct,  dvc_asset_status, dvc_asset_system</initialValue>
+        <choice value="table dvc, dvc_asset_type, tot_bytes_change_pct, tot_session_change_pct, tot_duration_change_pct,  dvc_asset_system, site_id">Brief</choice>
+        <choice value="table dvc, dvc_asset_type, tot_bytes_change_pct, tot_session_change_pct, tot_duration_change_pct,  tot_mb_avg, tot_session_avg, tot_duration_avg, dvc_asset_system, site_id">Detailed</choice>
+        <default>table dvc, dvc_asset_type, tot_bytes_change_pct, tot_session_change_pct, tot_duration_change_pct,  dvc_asset_system, site_id</default>
+        <initialValue>table dvc, dvc_asset_type, tot_bytes_change_pct, tot_session_change_pct, tot_duration_change_pct,  dvc_asset_system, site_id</initialValue>
       </input>
       <html>
         <h2>
@@ -432,18 +545,24 @@
 | stats avg(tot_bytes) as tot_bytes_avg, range(tot_bytes) as tot_bytes_range, avg(tot_session) as tot_session_avg, range(tot_session) as tot_session_range, avg(tot_duration) as tot_duration_avg, range(tot_duration) as tot_duration_range, last(dvc_asset_type) as dvc_asset_type, last(dvc_asset_status) as dvc_asset_status, last(dvc_asset_system) as dvc_asset_system by dvc
 | eval tot_bytes_change_pct=((tot_bytes_avg+tot_bytes_range)*100/tot_bytes_avg)-100, tot_session_change_pct=((tot_session_avg+tot_session_range)*100/tot_session_avg)-100, tot_duration_change_pct=((tot_duration_avg+tot_duration_range)*100/tot_duration_avg)-100
 | eval tot_mb_avg=tot_bytes_avg/1024/1024
-| table dvc, dvc_asset_type, tot_mb_avg, tot_bytes_avg, tot_bytes_change_pct, tot_session_avg, tot_session_change_pct, tot_duration_avg, tot_duration_change_pct,  dvc_asset_status, dvc_asset_system
+| lookup asset_lookup_by_str dns as dvc OUTPUTNEW asset_type as dns_asset_type, asset_system, asset_status, site_id
+| lookup asset_lookup_by_str nt_host as dvc OUTPUTNEW asset_type as host_asset_type, asset_system, asset_status, site_id
+| lookup asset_lookup_by_str ip as dvc OUTPUTNEW asset_type as ip_asset_type, asset_system, asset_status, site_id
+| fillnull dvc_site_id, dvc_bunit, site_id  value="" 
+| search dvc_asset_type=* site_id=$site_tok|s$ dvc_bunit=$bunit_tok|s$ asset_system=$system_tok|s$
+| table dvc, dvc_asset_type, tot_mb_avg, tot_bytes_avg, tot_bytes_change_pct, tot_session_avg, tot_session_change_pct, tot_duration_avg, tot_duration_change_pct,  dvc_asset_status, dvc_asset_system, site_id
 | sort - tot_bytes_change_pct
 | $SUBTRACT_FIELDS$
-| rename dvc as "Asset", dvc_asset_type as "Asset Type", tot_bytes_change_pct as "Traffic Amount Change", tot_session_change_pct as "Session Amount Change", tot_duration_change_pct as "Duration Change",  dvc_asset_status as "Asset Status", dvc_asset_system as "Asset System", tot_mb_avg as "Traffic Amount (MB)",	tot_session_avg as "Session Amount", tot_duration_avg as "Duration"</query>
-          <earliest>-1d@d</earliest>
-          <latest>@d</latest>
+| rename dvc as "Asset", dvc_asset_type as "Asset Type", tot_bytes_change_pct as "Traffic Amount Change", tot_session_change_pct as "Session Amount Change", tot_duration_change_pct as "Duration Change",  dvc_asset_status as "Asset Status", dvc_asset_system as "Asset System", tot_mb_avg as "Traffic Amount (MB)",	tot_session_avg as "Session Amount", tot_duration_avg as "Duration", site_id as "Facility"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
           <sampleRatio>1</sampleRatio>
         </search>
         <option name="count">7</option>
         <option name="dataOverlayMode">none</option>
         <option name="drilldown">cell</option>
         <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">true</option>
         <option name="totalsRow">false</option>
         <option name="wrap">true</option>

@@ -1,0 +1,208 @@
+<form theme="light" stylesheet="available_icons.css">
+  <label>CIP-004 R2: Cyber Security Training</label>
+  <description>Each Responsible Entity shall implement one or more cyber security training program(s) appropriate to individual roles, functions, or responsibilities that collectively includes each of the applicable requirement parts in CIP-004-6 Table R2 – Cyber Security Training Program.</description>
+  <search id="courseBaseSearch">
+    <query>| inputlookup cip_training_materials
+  | search is_available="TRUE"
+  | eval last_update_epoch=strptime(last_update, "%m/%d/%Y"), last_30_days_epoch=relative_time(now(), "-30d@d"), updated_in_last_30_days=if(last_update_epoch&gt;=last_30_days_epoch, 1, 0)
+  |  stats count as course_count by updated_in_last_30_days</query>
+    <earliest>$time_tok.earliest$</earliest>
+    <latest>$time_tok.latest$</latest>
+  </search>
+  <fieldset submitButton="false">
+    <input type="dropdown" token="individual_tok" searchWhenChanged="true">
+      <label>User</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <fieldForLabel>members</fieldForLabel>
+      <fieldForValue>members</fieldForValue>
+      <search>
+        <query>| inputlookup cip_distribution_lists
+| eval members=split(members, "|")
+| mvexpand members
+|  dedup members sortby members
+| fields members</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="dropdown" token="group_tok" searchWhenChanged="true">
+      <label>Training Group</label>
+      <choice value="*">All</choice>
+      <initialValue>*</initialValue>
+      <fieldForLabel>distribution_list_name</fieldForLabel>
+      <fieldForValue>distribution_list_name</fieldForValue>
+      <search>
+        <query>| inputlookup cip_distribution_lists
+| sort distribution_list_name
+| fields distribution_list_name</query>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </search>
+    </input>
+    <input type="time" token="time_tok" searchWhenChanged="true">
+      <label>Time Period</label>
+      <default>
+        <earliest>-90d@d</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="link" token="showRegulation_tok" searchWhenChanged="true">
+      <label>CIP Requirements</label>
+      <choice value="true">Show</choice>
+      <choice value="false">Hide</choice>
+      <default>false</default>
+      <initialValue>false</initialValue>
+      <change>
+        <condition value="true">
+          <set token="showRegulation_tok">true</set>
+        </condition>
+        <condition value="false">
+          <unset token="showRegulation_tok"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-dungeon" style="font-size: 34px;color:#FF5733"/>  User Activity</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <p>
+          <h1>R2.2:  Require completion of the training specified in Part 2.1 prior to granting authorized electronic access and authorized unescorted physical access to applicable Cyber Assets</h1>
+        </p>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Remote Access by Users with Expired Certifications</title>
+      <table>
+        <search>
+          <query>| tstats summariesonly=true count from datamodel=Authentication.Authentication where Authentication.app="win:remote" AND Authentication.src!="localhost" AND 
+    [| inputlookup cip_asset_lookup.csv 
+    | eval Authentication.dest=nt_host 
+    | fields Authentication.dest ] 
+    by _time,Authentication.src,Authentication.user,Authentication.dest,Authentication.action,Authentication.app span=1s 
+| `drop_dm_object_name("Authentication")` 
+| join type=left user 
+    [| `get_cip_training_and_members` 
+    | search State="REQUIRED" members=$individual_tok|s$ distribution_list_name=$group_tok|s$ 
+    | join type=left members,title 
+        [| inputlookup cip_training_records.csv 
+        | eval members=user 
+        | fields members,score,completed_date,title,next_certification_date ] 
+    | eval next_three_months=relative_time(now(), "+3mon@day"), next_certification_epoch=strptime(next_certification_date, "%m/%d/%Y"), today_now=now() 
+    | eval cert_state=if(next_certification_epoch &lt;= next_three_months, if(today_now &gt;= next_certification_epoch, "Expired", "Approaching Renewal"), "Good")
+    | rex field=members "(?&lt;user&gt;[^@]+)"
+    | search cert_state="Expired" 
+    | fields user,cert_state,distribution_list_name ] 
+| search cert_state="Expired" 
+| `get_cip_info_by_hostname(dest, "dest")`
+| `get_cip_info_by_dns(src, "src")`
+| `get_esp_zone(dest_zone)`
+| table _time,src,dest,dest_site_id,dest_zone,dest_asset_type,user,distribution_list_name,action,app
+| rename src as Source, user as User, dest as Destination, action as Result,app as App, distribution_list_name as Group, dest_site_id as Facility, dest_zone as "ESP Zone", dest_asset_type as "Asset Type"
+|  sort -_time</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <html>
+        <h1>
+          <i class="fas fa-dungeon" style="font-size: 34px;color:#FF5733"/>  Training Certifications</h1>
+        <div style="height:5px;background-color:#0ECE11;margin:0px;"/>
+      </html>
+    </panel>
+  </row>
+  <row depends="$showRegulation_tok$">
+    <panel>
+      <html>
+        <p>
+          <h1>R2.3:  Require completion of the training specified at least once every 15 calendar months.</h1>
+        </p>
+      </html>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Certifications Expired or Expiring in the next 3 Months</title>
+      <table>
+        <search>
+          <query>| `get_cip_training_and_members` 
+| search State="REQUIRED" members=$individual_tok|s$ distribution_list_name=$group_tok|s$ 
+| fields members, title 
+| join type=left members,title 
+    [| inputlookup cip_training_records.csv 
+    | eval members=user 
+    | fields members,score,completed_date,title,next_certification_date ] 
+| eval next_three_months=relative_time(now(), "+3mon@day"), next_certification_epoch=strptime(next_certification_date, "%m/%d/%Y"), today_now=now()
+| eval cert_state=if(next_certification_epoch &lt;= next_three_months, if(today_now &gt;= next_certification_epoch, "Expired", "Approaching Renewal"), "Good") 
+| search cert_state="Expired" OR cert_state="Approaching Renewal"
+| table members,title,next_certification_date,cert_state
+| sort -cert_state
+| rename members as User, title as Title, completed_date as "Completed Date", score as Score, next_certification_date as "Renewal Date", cert_state as "State"</query>
+          <earliest>-30d@d</earliest>
+          <latest>now</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">50</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format type="color" field="State">
+          <colorPalette type="map">{"Expired":#DC4E41}</colorPalette>
+        </format>
+      </table>
+    </panel>
+    <panel>
+      <title>Completed Training</title>
+      <table>
+        <search>
+          <query>| `get_cip_training_and_members`
+| search State="REQUIRED" members=$individual_tok|s$ distribution_list_name=$group_tok|s$ 
+| fields members, title
+| join type=left members,title
+    [|  inputlookup cip_training_records.csv
+    | eval members=user
+    | fields members,score,completed_date,title ]
+    | eval completed_epoch=strptime(completed_date, "%m/%d/%Y")
+| addinfo
+| eval max_time=if(info_max_time ="+Infinity", now(), info_max_time)
+| where completed_epoch&gt;= info_min_time AND completed_epoch &lt;= max_time
+|  sort completed_epoch, members
+| table members,title,completed_date,score
+| rename members as User, title as Title, completed_date as "Completed Date", score as Score</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+          <sampleRatio>1</sampleRatio>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="percentagesRow">false</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>
